@@ -557,35 +557,50 @@ WHEN NOT MATCHED THEN
 -- PART 8: CREATE STUDENT-GUARDIAN RELATIONSHIPS
 -- ═══════════════════════════════════════════════════════════════════════════
 
+-- Create staging table for student-guardian relationships
+-- Using a deterministic assignment: each student gets 1-2 guardians based on hash
+CREATE OR REPLACE TABLE STAGING.STG_STUDENT_GUARDIAN AS
+WITH student_guardian_pairs AS (
+    SELECT 
+        s.STUDENT_ID,
+        g.GUARDIAN_ID,
+        g.RELATIONSHIP_TYPE,
+        ROW_NUMBER() OVER (PARTITION BY s.STUDENT_ID ORDER BY HASH(s.STUDENT_ID || g.GUARDIAN_ID)) AS guardian_rank
+    FROM RAW_DEV.RAW_SIS.STUDENT_RAW s
+    CROSS JOIN RAW_DEV.RAW_SIS.GUARDIAN_RAW g
+    WHERE s._IS_CURRENT = TRUE
+      AND g._IS_CURRENT = TRUE
+      -- Deterministic pairing based on hash
+      AND MOD(ABS(HASH(s.STUDENT_ID || g.GUARDIAN_ID)), 75) = 0
+)
+SELECT 
+    STUDENT_ID,
+    GUARDIAN_ID,
+    RELATIONSHIP_TYPE
+FROM student_guardian_pairs
+WHERE guardian_rank <= 2;  -- Max 2 guardians per student
+
 -- Load Student-Guardian relationships (simple insert, no SCD needed for bridge table)
 INSERT INTO RAW_DEV.RAW_SIS.STUDENT_GUARDIAN_RAW 
     (RELATIONSHIP_ID, STUDENT_ID, GUARDIAN_ID, RELATIONSHIP_TYPE, 
      IS_PRIMARY_CONTACT, AUTHORIZED_PICKUP, EMERGENCY_CONTACT, 
      _LOADED_AT, _SOURCE_SYSTEM, _IS_CURRENT)
 SELECT
-    CONCAT(s.STUDENT_ID, '-', g.GUARDIAN_ID) AS RELATIONSHIP_ID,
-    s.STUDENT_ID,
-    g.GUARDIAN_ID,
-    g.RELATIONSHIP_TYPE,
-    MOD(HASH(s.STUDENT_ID || g.GUARDIAN_ID), 2) = 0 AS IS_PRIMARY_CONTACT,
-    MOD(HASH(s.STUDENT_ID || g.GUARDIAN_ID || 'pickup'), 3) < 2 AS AUTHORIZED_PICKUP,
-    MOD(HASH(s.STUDENT_ID || g.GUARDIAN_ID || 'emergency'), 2) = 0 AS EMERGENCY_CONTACT,
+    CONCAT(stg.STUDENT_ID, '-', stg.GUARDIAN_ID) AS RELATIONSHIP_ID,
+    stg.STUDENT_ID,
+    stg.GUARDIAN_ID,
+    stg.RELATIONSHIP_TYPE,
+    MOD(HASH(stg.STUDENT_ID || stg.GUARDIAN_ID), 2) = 0 AS IS_PRIMARY_CONTACT,
+    MOD(HASH(stg.STUDENT_ID || stg.GUARDIAN_ID || 'pickup'), 3) < 2 AS AUTHORIZED_PICKUP,
+    MOD(HASH(stg.STUDENT_ID || stg.GUARDIAN_ID || 'emergency'), 2) = 0 AS EMERGENCY_CONTACT,
     CURRENT_TIMESTAMP(),
     'STUDENT_INFORMATION_SYSTEM',
     TRUE
-FROM RAW_DEV.RAW_SIS.STUDENT_RAW s
-CROSS JOIN LATERAL (
-    SELECT GUARDIAN_ID, RELATIONSHIP_TYPE FROM RAW_DEV.RAW_SIS.GUARDIAN_RAW 
-    WHERE _IS_CURRENT = TRUE
-      AND MOD(HASH(s.STUDENT_ID || GUARDIAN_ID), 100) < 2  -- 1-2 guardians per student
-    ORDER BY HASH(s.STUDENT_ID || GUARDIAN_ID)
-    LIMIT 2
-) g
-WHERE s._IS_CURRENT = TRUE
-  AND NOT EXISTS (
-      SELECT 1 FROM RAW_DEV.RAW_SIS.STUDENT_GUARDIAN_RAW sg
-      WHERE sg.STUDENT_ID = s.STUDENT_ID AND sg.GUARDIAN_ID = g.GUARDIAN_ID
-  );
+FROM STAGING.STG_STUDENT_GUARDIAN stg
+WHERE NOT EXISTS (
+    SELECT 1 FROM RAW_DEV.RAW_SIS.STUDENT_GUARDIAN_RAW sg
+    WHERE sg.STUDENT_ID = stg.STUDENT_ID AND sg.GUARDIAN_ID = stg.GUARDIAN_ID
+);
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- VERIFICATION
