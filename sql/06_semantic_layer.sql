@@ -213,7 +213,7 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SEM_SCHOOL.SCHOOL_PERFORMANCE_ANALYTICS
     metrics.frl_students AS SUM(metrics.FRL_STUDENTS),
     capacity_utilization AS schools.total_enrollment / NULLIF(schools.total_capacity, 0) * 100,
     student_teacher_ratio AS schools.total_enrollment / NULLIF(schools.total_teachers, 0),
-    avg_capacity_utilization AS AVG(schools.CAPACITY_UTILIZATION_PCT)
+    schools.avg_capacity_utilization AS AVG(schools.CAPACITY_UTILIZATION_PCT)
   )
   COMMENT = 'School performance analytics for capacity planning and accountability';
 
