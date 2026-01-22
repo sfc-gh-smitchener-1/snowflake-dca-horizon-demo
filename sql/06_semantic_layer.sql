@@ -93,7 +93,7 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SEM_STUDENT.STUDENT_ENROLLMENT_ANALYTICS
   METRICS (
     -- Student counts
     students.student_count AS COUNT(students.STUDENT_KEY),
-    students.active_students AS COUNT_IF(students.ENROLLMENT_STATUS = 'Active', students.STUDENT_KEY),
+    students.active_students AS SUM(CASE WHEN students.ENROLLMENT_STATUS = 'Active' THEN 1 ELSE 0 END),
     students.at_risk_count AS SUM(CASE WHEN students.AT_RISK_FLAG THEN 1 ELSE 0 END),
     
     -- Program participation counts
@@ -257,9 +257,9 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SEM_STAFF.STAFF_WORKFORCE_ANALYTICS
   )
   METRICS (
     staff.staff_count AS COUNT(staff.STAFF_KEY),
-    staff.active_staff AS COUNT_IF(staff.EMPLOYMENT_STATUS = 'Active', staff.STAFF_KEY),
-    staff.teacher_count AS COUNT_IF(staff.IS_TEACHER, staff.STAFF_KEY),
-    staff.admin_count AS COUNT_IF(staff.IS_ADMINISTRATOR, staff.STAFF_KEY),
+    staff.active_staff AS SUM(CASE WHEN staff.EMPLOYMENT_STATUS = 'Active' THEN 1 ELSE 0 END),
+    staff.teacher_count AS SUM(CASE WHEN staff.IS_TEACHER THEN 1 ELSE 0 END),
+    staff.admin_count AS SUM(CASE WHEN staff.IS_ADMINISTRATOR THEN 1 ELSE 0 END),
     staff.total_experience_years AS SUM(staff.YEARS_EXPERIENCE),
     staff.avg_experience AS AVG(staff.YEARS_EXPERIENCE),
     staff.avg_tenure AS AVG(staff.TENURE_YEARS),
@@ -351,17 +351,17 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SEM_GOVERNANCE.GOVERNANCE_ANALYTICS
   )
   METRICS (
     contracts.contract_count AS COUNT(contracts.CONTRACT_ID),
-    contracts.active_contracts AS COUNT_IF(contracts.STATUS = 'active', contracts.CONTRACT_ID),
-    contracts.healthy_contracts AS COUNT_IF(contracts.HEALTH_STATUS = 'GREEN', contracts.CONTRACT_ID),
-    contracts.warning_contracts AS COUNT_IF(contracts.HEALTH_STATUS = 'YELLOW', contracts.CONTRACT_ID),
-    contracts.critical_contracts AS COUNT_IF(contracts.HEALTH_STATUS = 'RED', contracts.CONTRACT_ID),
+    contracts.active_contracts AS SUM(CASE WHEN contracts.STATUS = 'active' THEN 1 ELSE 0 END),
+    contracts.healthy_contracts AS SUM(CASE WHEN contracts.HEALTH_STATUS = 'GREEN' THEN 1 ELSE 0 END),
+    contracts.warning_contracts AS SUM(CASE WHEN contracts.HEALTH_STATUS = 'YELLOW' THEN 1 ELSE 0 END),
+    contracts.critical_contracts AS SUM(CASE WHEN contracts.HEALTH_STATUS = 'RED' THEN 1 ELSE 0 END),
     consumers.consumer_count AS COUNT(consumers.CONSUMER_ID),
-    consumers.active_consumers AS COUNT_IF(consumers.IS_ACTIVE, consumers.CONSUMER_ID),
+    consumers.active_consumers AS SUM(CASE WHEN consumers.IS_ACTIVE THEN 1 ELSE 0 END),
     quality_rules.rule_count AS COUNT(quality_rules.RULE_ID),
-    quality_rules.active_rules AS COUNT_IF(quality_rules.IS_ACTIVE, quality_rules.RULE_ID),
+    quality_rules.active_rules AS SUM(CASE WHEN quality_rules.IS_ACTIVE THEN 1 ELSE 0 END),
     alerts.alert_count AS COUNT(alerts.ALERT_ID),
-    alerts.open_alerts AS COUNT_IF(alerts.STATUS = 'OPEN', alerts.ALERT_ID),
-    alerts.critical_alerts AS COUNT_IF(alerts.SEVERITY = 'error' AND alerts.STATUS = 'OPEN', alerts.ALERT_ID),
+    alerts.open_alerts AS SUM(CASE WHEN alerts.STATUS = 'OPEN' THEN 1 ELSE 0 END),
+    alerts.critical_alerts AS SUM(CASE WHEN alerts.SEVERITY = 'error' AND alerts.STATUS = 'OPEN' THEN 1 ELSE 0 END),
     avg_consumers_per_contract AS consumers.consumer_count / NULLIF(contracts.contract_count, 0),
     avg_rules_per_contract AS quality_rules.rule_count / NULLIF(contracts.contract_count, 0),
     health_score AS contracts.healthy_contracts / NULLIF(contracts.active_contracts, 0) * 100
@@ -400,10 +400,10 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SEM_GOVERNANCE.DATA_QUALITY_ANALYTICS
   )
   METRICS (
     quality_rules.rule_count AS COUNT(quality_rules.RULE_ID),
-    quality_rules.active_rules AS COUNT_IF(quality_rules.IS_ACTIVE, quality_rules.RULE_ID),
+    quality_rules.active_rules AS SUM(CASE WHEN quality_rules.IS_ACTIVE THEN 1 ELSE 0 END),
     results.check_count AS COUNT(results.RESULT_ID),
-    results.passed_checks AS COUNT_IF(results.STATUS = 'PASS', results.RESULT_ID),
-    results.failed_checks AS COUNT_IF(results.STATUS = 'FAIL', results.RESULT_ID),
+    results.passed_checks AS SUM(CASE WHEN results.STATUS = 'PASS' THEN 1 ELSE 0 END),
+    results.failed_checks AS SUM(CASE WHEN results.STATUS = 'FAIL' THEN 1 ELSE 0 END),
     results.total_records_checked AS SUM(results.RECORDS_CHECKED),
     results.total_records_failed AS SUM(results.RECORDS_FAILED),
     pass_rate AS results.passed_checks / NULLIF(results.check_count, 0) * 100,
@@ -439,15 +439,15 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SEM_GOVERNANCE.FERPA_COMPLIANCE_ANALYTIC
   )
   METRICS (
     contracts.total_contracts AS COUNT(contracts.CONTRACT_ID),
-    contracts.restricted_contracts AS COUNT_IF(contracts.GOVERNANCE_CLASSIFICATION = 'RESTRICTED', contracts.CONTRACT_ID),
-    contracts.confidential_contracts AS COUNT_IF(contracts.GOVERNANCE_CLASSIFICATION = 'CONFIDENTIAL', contracts.CONTRACT_ID),
-    contracts.public_contracts AS COUNT_IF(contracts.GOVERNANCE_CLASSIFICATION = 'PUBLIC', contracts.CONTRACT_ID),
-    contracts.ai_allowed AS COUNT_IF(contracts.AI_ELIGIBILITY = 'TRUE', contracts.CONTRACT_ID),
-    contracts.ai_aggregated_only AS COUNT_IF(contracts.AI_ELIGIBILITY = 'AGGREGATED_ONLY', contracts.CONTRACT_ID),
-    contracts.ai_pseudonymized AS COUNT_IF(contracts.AI_ELIGIBILITY = 'PSEUDONYMIZED_ONLY', contracts.CONTRACT_ID),
+    contracts.restricted_contracts AS SUM(CASE WHEN contracts.GOVERNANCE_CLASSIFICATION = 'RESTRICTED' THEN 1 ELSE 0 END),
+    contracts.confidential_contracts AS SUM(CASE WHEN contracts.GOVERNANCE_CLASSIFICATION = 'CONFIDENTIAL' THEN 1 ELSE 0 END),
+    contracts.public_contracts AS SUM(CASE WHEN contracts.GOVERNANCE_CLASSIFICATION = 'PUBLIC' THEN 1 ELSE 0 END),
+    contracts.ai_allowed AS SUM(CASE WHEN contracts.AI_ELIGIBILITY = 'TRUE' THEN 1 ELSE 0 END),
+    contracts.ai_aggregated_only AS SUM(CASE WHEN contracts.AI_ELIGIBILITY = 'AGGREGATED_ONLY' THEN 1 ELSE 0 END),
+    contracts.ai_pseudonymized AS SUM(CASE WHEN contracts.AI_ELIGIBILITY = 'PSEUDONYMIZED_ONLY' THEN 1 ELSE 0 END),
     consumers.consumer_count AS COUNT(consumers.CONSUMER_ID),
-    consumers.full_access AS COUNT_IF(consumers.ACCESS_LEVEL = 'read_full', consumers.CONSUMER_ID),
-    consumers.masked_access AS COUNT_IF(consumers.ACCESS_LEVEL = 'read_masked', consumers.CONSUMER_ID)
+    consumers.full_access AS SUM(CASE WHEN consumers.ACCESS_LEVEL = 'read_full' THEN 1 ELSE 0 END),
+    consumers.masked_access AS SUM(CASE WHEN consumers.ACCESS_LEVEL = 'read_masked' THEN 1 ELSE 0 END)
   )
   COMMENT = 'FERPA compliance analytics for education data governance monitoring';
 
