@@ -1,0 +1,262 @@
+# ============================================================================
+# DATA CONTRACT TEMPLATE: Staff/HR Data
+# ============================================================================
+# 
+# Use this template for any staff or HR-related data source.
+# Handles sensitive employment data including salary and SSN.
+#
+# Privacy Checklist:
+# [ ] SSN marked as RESTRICTED with HIGH PII
+# [ ] Salary data protected
+# [ ] Personal contact info appropriately masked
+# [ ] Employment records handled per HR policies
+#
+# ============================================================================
+
+contract:
+  # ─────────────────────────────────────────────────────────────────────────
+  # IDENTITY & OWNERSHIP
+  # ─────────────────────────────────────────────────────────────────────────
+  id: {{ contract_id }}_v1                    # e.g., staff_assignment_v1
+  version: 1.0.0
+  status: draft
+  
+  producer:
+    system: {{ source_system }}               # e.g., HR_INFORMATION_SYSTEM
+    team: {{ team_name }}                     # e.g., Human Resources
+    owner: {{ owner_email }}                  # e.g., hr-data@district.edu
+    slack_channel: "#{{ slack_channel }}"
+  
+  # ─────────────────────────────────────────────────────────────────────────
+  # SCHEMA DEFINITION
+  # ─────────────────────────────────────────────────────────────────────────
+  schema:
+    database: RAW_${ENV}
+    schema: RAW_HR
+    table: {{ table_name }}_RAW
+    
+    columns:
+      # ── Primary Key ──
+      - name: {{ primary_key_name }}
+        type: VARCHAR({{ key_length }})
+        description: "{{ primary_key_description }}"
+        constraints:
+          - not_null
+          - unique
+          - primary_key
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+      
+      # ── Staff Reference ──
+      - name: STAFF_ID
+        type: VARCHAR(20)
+        description: "Staff member identifier"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: MODERATE
+          AI_ALLOWED: PSEUDONYMIZED_ONLY
+      
+      # ── Standard HR PII Fields ──
+      # Uncomment and customize as needed:
+      
+      # - name: SSN
+      #   type: VARCHAR(11)
+      #   description: "Social Security Number"
+      #   constraints: []
+      #   tags:
+      #     DATA_CLASSIFICATION: RESTRICTED
+      #     PII_TYPE: HIGH
+      #     AI_ALLOWED: "FALSE"
+      #     RESIDENCY_REGION: US_ONLY
+      
+      # - name: SALARY
+      #   type: NUMBER(12,2)
+      #   description: "Annual salary"
+      #   constraints: []
+      #   tags:
+      #     DATA_CLASSIFICATION: RESTRICTED
+      #     PII_TYPE: HIGH
+      #     AI_ALLOWED: AGGREGATED_ONLY
+      
+      # - name: EMAIL
+      #   type: VARCHAR(100)
+      #   description: "District email address"
+      #   constraints:
+      #     - not_null
+      #   tags:
+      #     DATA_CLASSIFICATION: INTERNAL
+      #     PII_TYPE: LOW
+      #     AI_ALLOWED: "TRUE"
+      
+      # - name: PERSONAL_EMAIL
+      #   type: VARCHAR(100)
+      #   description: "Personal email address"
+      #   constraints: []
+      #   tags:
+      #     DATA_CLASSIFICATION: CONFIDENTIAL
+      #     PII_TYPE: MODERATE
+      #     AI_ALLOWED: "FALSE"
+      
+      # - name: PHONE_MOBILE
+      #   type: VARCHAR(20)
+      #   description: "Personal mobile phone"
+      #   constraints: []
+      #   tags:
+      #     DATA_CLASSIFICATION: CONFIDENTIAL
+      #     PII_TYPE: MODERATE
+      #     AI_ALLOWED: "FALSE"
+      
+      # - name: HOME_ADDRESS
+      #   type: VARCHAR(200)
+      #   description: "Home mailing address"
+      #   constraints: []
+      #   tags:
+      #     DATA_CLASSIFICATION: CONFIDENTIAL
+      #     PII_TYPE: MODERATE
+      #     AI_ALLOWED: "FALSE"
+
+      # ── Non-Sensitive Employment Fields ──
+      
+      # - name: POSITION_TITLE
+      #   type: VARCHAR(100)
+      #   description: "Job title"
+      #   constraints:
+      #     - not_null
+      #   tags:
+      #     DATA_CLASSIFICATION: INTERNAL
+      #     PII_TYPE: NONE
+      #     AI_ALLOWED: "TRUE"
+      
+      # - name: DEPARTMENT
+      #   type: VARCHAR(50)
+      #   description: "Department or subject area"
+      #   tags:
+      #     DATA_CLASSIFICATION: INTERNAL
+      #     PII_TYPE: NONE
+      #     AI_ALLOWED: "TRUE"
+      
+      # - name: PRIMARY_SCHOOL_ID
+      #   type: VARCHAR(20)
+      #   description: "Primary school assignment"
+      #   constraints:
+      #     - not_null
+      #   tags:
+      #     DATA_CLASSIFICATION: INTERNAL
+      #     PII_TYPE: NONE
+      #     AI_ALLOWED: "TRUE"
+
+      # ── System Columns ──
+      - name: _LOADED_AT
+        type: TIMESTAMP_NTZ
+        description: "Snowflake ingestion timestamp"
+        constraints:
+          - not_null
+        system_managed: true
+        
+      - name: _SOURCE_SYSTEM
+        type: VARCHAR(50)
+        description: "Source system identifier"
+        system_managed: true
+        
+      - name: _ROW_HASH
+        type: VARCHAR(64)
+        description: "SHA256 hash of business columns"
+        system_managed: true
+        
+      - name: _IS_CURRENT
+        type: BOOLEAN
+        description: "SCD Type 2 current record flag"
+        system_managed: true
+        
+      - name: _VALID_FROM
+        type: TIMESTAMP_NTZ
+        description: "SCD Type 2 effective start"
+        system_managed: true
+        
+      - name: _VALID_TO
+        type: TIMESTAMP_NTZ
+        description: "SCD Type 2 effective end"
+        system_managed: true
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # SERVICE LEVEL AGREEMENTS
+  # ─────────────────────────────────────────────────────────────────────────
+  sla:
+    freshness:
+      max_age_minutes: 120                    # HR data typically less frequent
+      measurement: "MAX(_LOADED_AT) vs CURRENT_TIMESTAMP()"
+      
+    completeness:
+      threshold_percent: 99.5
+      critical_columns:
+        - {{ primary_key_name }}
+        - STAFF_ID
+        
+    availability:
+      uptime_percent: 99.9
+      maintenance_window: "Saturday 02:00-04:00 EST"
+      
+    volume:
+      expected_daily_rows:
+        min: {{ min_daily_rows }}
+        max: {{ max_daily_rows }}
+      alert_on_variance_percent: 10
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # QUALITY RULES
+  # ─────────────────────────────────────────────────────────────────────────
+  quality_rules:
+    - id: qr_001
+      name: valid_primary_key
+      type: column_check
+      column: {{ primary_key_name }}
+      sql: "{{ primary_key_name }} IS NOT NULL"
+      severity: error
+      
+    - id: qr_002
+      name: valid_staff_reference
+      type: cross_table_check
+      sql: "ALL STAFF_ID VALUES EXIST IN STAFF_RAW.STAFF_ID"
+      severity: error
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # GOVERNANCE & COMPLIANCE
+  # ─────────────────────────────────────────────────────────────────────────
+  governance:
+    classification: CONFIDENTIAL
+    residency_requirements:
+      - "SSN and salary data must not leave US region"
+      - "Personal contact info requires masking for most roles"
+    retention_days: 2555                      # 7 years after employment ends
+    ai_eligibility: PSEUDONYMIZED_ONLY
+    
+  # ─────────────────────────────────────────────────────────────────────────
+  # LINEAGE & DEPENDENCIES
+  # ─────────────────────────────────────────────────────────────────────────
+  lineage:
+    source_systems:
+      - name: {{ source_system_name }}
+        connection: {{ connection_name }}
+        extraction: CDC_STREAM
+        
+    downstream_dependencies:
+      - contract_id: {{ downstream_contract }}
+        type: transformation
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # CONSUMERS
+  # ─────────────────────────────────────────────────────────────────────────
+  consumers:
+    - team: Human Resources
+      contact: hr@district.edu
+      use_case: "Staff management and reporting"
+      access_level: read_full
+      
+    - team: District Administration
+      contact: admin@district.edu
+      use_case: "Staffing analytics and planning"
+      access_level: read_masked

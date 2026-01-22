@@ -1,0 +1,337 @@
+# ============================================================================
+# DATA CONTRACT: Guardian/Parent Data
+# ============================================================================
+# Producer: Student Information System (SIS)
+# Source: Synthetic Massachusetts School District Data
+# Updated: 2026-01-22
+# ============================================================================
+
+contract:
+  id: guardian_v1
+  version: 1.0.0
+  status: active
+  
+  producer:
+    system: STUDENT_INFORMATION_SYSTEM
+    team: Student Data Services
+    owner: sis-team@district.edu
+    slack_channel: "#sis-data"
+  
+  schema:
+    database: RAW_${ENV}
+    schema: RAW_SIS
+    table: GUARDIAN_RAW
+    
+    columns:
+      - name: GUARDIAN_ID
+        type: VARCHAR(20)
+        description: "Unique guardian identifier"
+        constraints:
+          - not_null
+          - unique
+          - primary_key
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: MODERATE
+          AI_ALLOWED: PSEUDONYMIZED_ONLY
+          FERPA_CATEGORY: DIRECTORY
+          
+      - name: FIRST_NAME
+        type: VARCHAR(50)
+        description: "Guardian first name"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: MODERATE
+          AI_ALLOWED: PSEUDONYMIZED_ONLY
+          FERPA_CATEGORY: DIRECTORY
+          
+      - name: LAST_NAME
+        type: VARCHAR(50)
+        description: "Guardian last name"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: MODERATE
+          AI_ALLOWED: PSEUDONYMIZED_ONLY
+          FERPA_CATEGORY: DIRECTORY
+          
+      - name: RELATIONSHIP_TYPE
+        type: VARCHAR(30)
+        description: "Relationship to student"
+        constraints: []
+        tests:
+          - type: accepted_values
+            values: ["Mother", "Father", "Stepmother", "Stepfather", "Grandmother", "Grandfather", "Aunt", "Uncle", "Foster Parent", "Legal Guardian", "Other"]
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: LOW
+          AI_ALLOWED: AGGREGATED_ONLY
+          FERPA_CATEGORY: DIRECTORY
+          
+      - name: EMAIL_PRIMARY
+        type: VARCHAR(100)
+        description: "Primary email address"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: MODERATE
+          AI_ALLOWED: "FALSE"
+          FERPA_CATEGORY: DIRECTORY
+          
+      - name: EMAIL_SECONDARY
+        type: VARCHAR(100)
+        description: "Secondary email address"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: MODERATE
+          AI_ALLOWED: "FALSE"
+          FERPA_CATEGORY: DIRECTORY
+          
+      - name: PHONE_HOME
+        type: VARCHAR(20)
+        description: "Home phone number"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: MODERATE
+          AI_ALLOWED: "FALSE"
+          FERPA_CATEGORY: DIRECTORY
+          
+      - name: PHONE_MOBILE
+        type: VARCHAR(20)
+        description: "Mobile phone number"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: MODERATE
+          AI_ALLOWED: "FALSE"
+          FERPA_CATEGORY: DIRECTORY
+          
+      - name: PHONE_WORK
+        type: VARCHAR(20)
+        description: "Work phone number"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: MODERATE
+          AI_ALLOWED: "FALSE"
+          FERPA_CATEGORY: DIRECTORY
+          
+      - name: ADDRESS_LINE1
+        type: VARCHAR(100)
+        description: "Street address line 1"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: MODERATE
+          AI_ALLOWED: "FALSE"
+          FERPA_CATEGORY: DIRECTORY
+          
+      - name: ADDRESS_LINE2
+        type: VARCHAR(100)
+        description: "Street address line 2"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: MODERATE
+          AI_ALLOWED: "FALSE"
+          FERPA_CATEGORY: DIRECTORY
+          
+      - name: CITY
+        type: VARCHAR(50)
+        description: "City"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: LOW
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: DIRECTORY
+          
+      - name: STATE
+        type: VARCHAR(2)
+        description: "State code"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: PUBLIC
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: DIRECTORY
+          
+      - name: ZIP_CODE
+        type: VARCHAR(10)
+        description: "ZIP code"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: LOW
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: DIRECTORY
+          
+      - name: EMPLOYER
+        type: VARCHAR(100)
+        description: "Guardian employer name"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: MODERATE
+          AI_ALLOWED: "FALSE"
+          FERPA_CATEGORY: DIRECTORY
+          
+      - name: PREFERRED_LANGUAGE
+        type: VARCHAR(30)
+        description: "Preferred language for communication"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: DIRECTORY
+          
+      - name: PORTAL_ACCOUNT_ACTIVE
+        type: BOOLEAN
+        description: "Has active parent portal account"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: DIRECTORY
+          
+      - name: PORTAL_USERNAME
+        type: VARCHAR(50)
+        description: "Parent portal username"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: MODERATE
+          AI_ALLOWED: "FALSE"
+          FERPA_CATEGORY: DIRECTORY
+          
+      - name: RECEIVES_DISTRICT_COMMUNICATIONS
+        type: BOOLEAN
+        description: "Opted in to district communications"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: DIRECTORY
+
+      # ── System Columns ──
+      - name: _LOADED_AT
+        type: TIMESTAMP_NTZ
+        description: "Snowflake ingestion timestamp"
+        constraints:
+          - not_null
+        system_managed: true
+        
+      - name: _SOURCE_SYSTEM
+        type: VARCHAR(50)
+        description: "Source system identifier"
+        system_managed: true
+        
+      - name: _ROW_HASH
+        type: VARCHAR(64)
+        description: "SHA256 hash of business columns"
+        system_managed: true
+        
+      - name: _IS_CURRENT
+        type: BOOLEAN
+        description: "SCD Type 2 current record flag"
+        system_managed: true
+        
+      - name: _VALID_FROM
+        type: TIMESTAMP_NTZ
+        description: "SCD Type 2 effective start"
+        system_managed: true
+        
+      - name: _VALID_TO
+        type: TIMESTAMP_NTZ
+        description: "SCD Type 2 effective end"
+        system_managed: true
+
+  sla:
+    freshness:
+      max_age_minutes: 120
+      measurement: "MAX(_LOADED_AT) vs CURRENT_TIMESTAMP()"
+      
+    completeness:
+      threshold_percent: 99.0
+      critical_columns:
+        - GUARDIAN_ID
+        - FIRST_NAME
+        - LAST_NAME
+        
+    availability:
+      uptime_percent: 99.9
+      maintenance_window: "Saturday 02:00-04:00 EST"
+      
+    volume:
+      expected_daily_rows:
+        min: 140000
+        max: 160000
+      alert_on_variance_percent: 10
+
+  quality_rules:
+    - id: qr_001
+      name: valid_guardian_id
+      type: column_check
+      column: GUARDIAN_ID
+      sql: "GUARDIAN_ID IS NOT NULL"
+      severity: error
+      
+    - id: qr_002
+      name: valid_email_format
+      type: column_check
+      column: EMAIL_PRIMARY
+      sql: "EMAIL_PRIMARY IS NULL OR EMAIL_PRIMARY REGEXP '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$'"
+      severity: warning
+      
+    - id: qr_003
+      name: phone_format
+      type: column_check
+      column: PHONE_MOBILE
+      sql: "PHONE_MOBILE IS NULL OR LENGTH(REGEXP_REPLACE(PHONE_MOBILE, '[^0-9]', '')) >= 10"
+      severity: warning
+
+  governance:
+    classification: CONFIDENTIAL
+    residency_requirements:
+      - "Guardian contact info is FERPA protected"
+      - "Only share with school personnel for educational purposes"
+    retention_days: 2555
+    ai_eligibility: PSEUDONYMIZED_ONLY
+    compliance_frameworks:
+      - FERPA
+    
+  lineage:
+    source_systems:
+      - name: PowerSchool SIS
+        connection: POWERSCHOOL_API
+        extraction: CDC_STREAM
+        
+    downstream_dependencies:
+      - contract_id: curated_dim_guardian_v1
+        type: transformation
+      - contract_id: sem_parent_portal_v1
+        type: product
+
+  consumers:
+    - team: School Office
+      contact: front-office@district.edu
+      use_case: Parent communication
+      access_level: read_full
+      
+    - team: Parent Portal
+      contact: portal@district.edu
+      use_case: Parent self-service access
+      access_level: read_masked
+      
+    - team: Communications
+      contact: comms@district.edu
+      use_case: District communications
+      access_level: read_masked

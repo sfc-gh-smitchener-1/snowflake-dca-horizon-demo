@@ -1,0 +1,486 @@
+# ============================================================================
+# DATA CONTRACT: School Data
+# ============================================================================
+# Producer: District Management System
+# Source: Synthetic Massachusetts School District Data
+# Updated: 2026-01-22
+# ============================================================================
+
+contract:
+  # ─────────────────────────────────────────────────────────────────────────
+  # IDENTITY & OWNERSHIP
+  # ─────────────────────────────────────────────────────────────────────────
+  id: school_v1
+  version: 1.0.0
+  status: active
+  
+  producer:
+    system: DISTRICT_MANAGEMENT_SYSTEM
+    team: District Operations
+    owner: ops-data@district.edu
+    slack_channel: "#district-systems"
+  
+  # ─────────────────────────────────────────────────────────────────────────
+  # SCHEMA DEFINITION
+  # ─────────────────────────────────────────────────────────────────────────
+  schema:
+    database: RAW_${ENV}
+    schema: RAW_SIS
+    table: SCHOOL_RAW
+    
+    columns:
+      # ── Primary Key ──
+      - name: SCHOOL_ID
+        type: VARCHAR(20)
+        description: "Unique school identifier (state school code)"
+        constraints:
+          - not_null
+          - unique
+          - primary_key
+        tags:
+          DATA_CLASSIFICATION: PUBLIC
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          
+      # ── School Information ──
+      - name: SCHOOL_NAME
+        type: VARCHAR(100)
+        description: "Official school name"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: PUBLIC
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          
+      - name: SCHOOL_NAME_SHORT
+        type: VARCHAR(50)
+        description: "Abbreviated school name"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: PUBLIC
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          
+      - name: SCHOOL_TYPE
+        type: VARCHAR(30)
+        description: "Type of school"
+        constraints:
+          - not_null
+        tests:
+          - type: accepted_values
+            values: ["Elementary", "Middle", "High", "K-8", "K-12", "Alternative", "Charter", "Vocational"]
+        tags:
+          DATA_CLASSIFICATION: PUBLIC
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          
+      - name: GRADE_LEVELS_SERVED
+        type: VARCHAR(20)
+        description: "Grade range (e.g., K-5, 6-8, 9-12)"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: PUBLIC
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          
+      - name: IS_TITLE_I
+        type: BOOLEAN
+        description: "Title I school status"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: PUBLIC
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          
+      - name: IS_MAGNET
+        type: BOOLEAN
+        description: "Magnet school status"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: PUBLIC
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          
+      - name: IS_CHARTER
+        type: BOOLEAN
+        description: "Charter school status"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: PUBLIC
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+
+      # ── District Association ──
+      - name: DISTRICT_ID
+        type: VARCHAR(20)
+        description: "Parent district identifier"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: PUBLIC
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          
+      - name: DISTRICT_NAME
+        type: VARCHAR(100)
+        description: "Parent district name (denormalized)"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: PUBLIC
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+
+      # ── Location ──
+      - name: ADDRESS
+        type: VARCHAR(200)
+        description: "School street address"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: PUBLIC
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          
+      - name: CITY
+        type: VARCHAR(50)
+        description: "City"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: PUBLIC
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          
+      - name: STATE
+        type: VARCHAR(2)
+        description: "State code"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: PUBLIC
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          
+      - name: ZIP_CODE
+        type: VARCHAR(10)
+        description: "ZIP code"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: PUBLIC
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          
+      - name: COUNTY
+        type: VARCHAR(50)
+        description: "County name"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: PUBLIC
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          
+      - name: LATITUDE
+        type: NUMBER(10,7)
+        description: "Geographic latitude"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: PUBLIC
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          
+      - name: LONGITUDE
+        type: NUMBER(10,7)
+        description: "Geographic longitude"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: PUBLIC
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+
+      # ── Contact Information ──
+      - name: PHONE_MAIN
+        type: VARCHAR(20)
+        description: "Main office phone number"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: PUBLIC
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          
+      - name: PHONE_FAX
+        type: VARCHAR(20)
+        description: "Fax number"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: PUBLIC
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          
+      - name: WEBSITE
+        type: VARCHAR(200)
+        description: "School website URL"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: PUBLIC
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          
+      - name: EMAIL_MAIN
+        type: VARCHAR(100)
+        description: "Main office email"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: PUBLIC
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+
+      # ── Leadership ──
+      - name: PRINCIPAL_STAFF_ID
+        type: VARCHAR(20)
+        description: "Current principal (FK to STAFF)"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          
+      - name: PRINCIPAL_NAME
+        type: VARCHAR(100)
+        description: "Current principal name (denormalized)"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: PUBLIC
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+
+      # ── Capacity & Enrollment ──
+      - name: BUILDING_CAPACITY
+        type: NUMBER(6)
+        description: "Maximum student capacity"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: PUBLIC
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          
+      - name: CURRENT_ENROLLMENT
+        type: NUMBER(6)
+        description: "Current student enrollment"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: PUBLIC
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          
+      - name: STAFF_COUNT
+        type: NUMBER(5)
+        description: "Total staff count"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: PUBLIC
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          
+      - name: TEACHER_COUNT
+        type: NUMBER(5)
+        description: "Number of teachers"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: PUBLIC
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+
+      # ── Academic Calendar ──
+      - name: SCHOOL_YEAR
+        type: VARCHAR(10)
+        description: "Current school year (e.g., 2025-2026)"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: PUBLIC
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          
+      - name: FIRST_DAY_OF_SCHOOL
+        type: DATE
+        description: "First day of current school year"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: PUBLIC
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          
+      - name: LAST_DAY_OF_SCHOOL
+        type: DATE
+        description: "Last day of current school year"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: PUBLIC
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+
+      # ── Performance Metrics ──
+      - name: ACCOUNTABILITY_RATING
+        type: VARCHAR(20)
+        description: "State accountability rating"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: PUBLIC
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          
+      - name: GRADUATION_RATE
+        type: NUMBER(5,2)
+        description: "4-year graduation rate (for high schools)"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: PUBLIC
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          
+      - name: ATTENDANCE_RATE
+        type: NUMBER(5,2)
+        description: "Average daily attendance rate"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: PUBLIC
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+
+      # ── System Columns ──
+      - name: _LOADED_AT
+        type: TIMESTAMP_NTZ
+        description: "Snowflake ingestion timestamp"
+        constraints:
+          - not_null
+        system_managed: true
+        
+      - name: _SOURCE_SYSTEM
+        type: VARCHAR(50)
+        description: "Source system identifier"
+        system_managed: true
+        
+      - name: _ROW_HASH
+        type: VARCHAR(64)
+        description: "SHA256 hash of business columns"
+        system_managed: true
+        
+      - name: _IS_CURRENT
+        type: BOOLEAN
+        description: "SCD Type 2 current record flag"
+        system_managed: true
+        
+      - name: _VALID_FROM
+        type: TIMESTAMP_NTZ
+        description: "SCD Type 2 effective start"
+        system_managed: true
+        
+      - name: _VALID_TO
+        type: TIMESTAMP_NTZ
+        description: "SCD Type 2 effective end"
+        system_managed: true
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # SERVICE LEVEL AGREEMENTS
+  # ─────────────────────────────────────────────────────────────────────────
+  sla:
+    freshness:
+      max_age_minutes: 1440  # 24 hours - school data changes infrequently
+      measurement: "MAX(_LOADED_AT) vs CURRENT_TIMESTAMP()"
+      
+    completeness:
+      threshold_percent: 100
+      critical_columns:
+        - SCHOOL_ID
+        - SCHOOL_NAME
+        - DISTRICT_ID
+        - SCHOOL_TYPE
+        
+    availability:
+      uptime_percent: 99.99
+      maintenance_window: "Sunday 02:00-04:00 EST"
+      
+    volume:
+      expected_daily_rows:
+        min: 240
+        max: 260
+      alert_on_variance_percent: 5
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # QUALITY RULES
+  # ─────────────────────────────────────────────────────────────────────────
+  quality_rules:
+    - id: qr_001
+      name: valid_school_id
+      type: column_check
+      column: SCHOOL_ID
+      sql: "SCHOOL_ID IS NOT NULL AND LENGTH(SCHOOL_ID) > 0"
+      severity: error
+      
+    - id: qr_002
+      name: valid_district_reference
+      type: cross_table_check
+      sql: "ALL DISTRICT_ID VALUES EXIST IN DISTRICT_RAW.DISTRICT_ID"
+      severity: error
+      
+    - id: qr_003
+      name: valid_grade_range
+      type: column_check
+      column: GRADE_LEVELS_SERVED
+      sql: "GRADE_LEVELS_SERVED REGEXP '^(PK|K|[0-9]{1,2})-(PK|K|[0-9]{1,2})$'"
+      severity: warning
+      
+    - id: qr_004
+      name: capacity_ge_enrollment
+      type: table_check
+      sql: "BUILDING_CAPACITY >= CURRENT_ENROLLMENT"
+      severity: warning
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # GOVERNANCE & COMPLIANCE
+  # ─────────────────────────────────────────────────────────────────────────
+  governance:
+    classification: PUBLIC
+    residency_requirements: []
+    retention_days: 3650  # 10 years
+    ai_eligibility: "TRUE"
+    
+  # ─────────────────────────────────────────────────────────────────────────
+  # LINEAGE & DEPENDENCIES
+  # ─────────────────────────────────────────────────────────────────────────
+  lineage:
+    source_systems:
+      - name: District Management System
+        connection: DMS_API
+        extraction: FULL_REFRESH
+        
+    downstream_dependencies:
+      - contract_id: curated_dim_school_v1
+        type: transformation
+      - contract_id: sem_school_performance_v1
+        type: product
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # CONSUMERS
+  # ─────────────────────────────────────────────────────────────────────────
+  consumers:
+    - team: Public Affairs
+      contact: communications@district.edu
+      use_case: Public school directory
+      access_level: read_full
+      
+    - team: Analytics
+      contact: analytics@district.edu
+      use_case: School performance analysis
+      access_level: read_full
+      
+    - team: Parents
+      contact: parent-portal@district.edu
+      use_case: School information lookup
+      access_level: read_full

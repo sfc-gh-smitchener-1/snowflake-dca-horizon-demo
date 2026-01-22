@@ -1,0 +1,557 @@
+-- ============================================================================
+-- SEMANTIC LAYER - Snowflake Semantic Views for Education
+-- ============================================================================
+-- This script creates native Snowflake Semantic Views on top of the CURATED
+-- layer Dynamic Tables. Semantic Views provide:
+--   - Logical table definitions with relationships
+--   - Dimensions and metrics for Cortex Analyst
+--   - Business-friendly names and descriptions
+--   - Natural language query capabilities
+--
+-- Architecture: RAW → CURATED (Dynamic Tables) → SEMANTIC (Semantic Views)
+--
+-- Reference: https://docs.snowflake.com/en/sql-reference/sql/create-semantic-view
+-- Run order: After 05_curated_layer_dynamic_tables.sql
+-- ============================================================================
+
+USE ROLE DATA_ADMIN;
+USE DATABASE SEM_DEV;
+USE WAREHOUSE ANALYTICS_WH;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- SCHEMA SETUP
+-- ─────────────────────────────────────────────────────────────────────────────
+
+CREATE SCHEMA IF NOT EXISTS SEM_DEV.SEM_STUDENT
+    COMMENT = 'Semantic layer for student analytics - enrollment, performance, demographics';
+
+CREATE SCHEMA IF NOT EXISTS SEM_DEV.SEM_SCHOOL
+    COMMENT = 'Semantic layer for school analytics - capacity, performance, staffing';
+
+CREATE SCHEMA IF NOT EXISTS SEM_DEV.SEM_STAFF
+    COMMENT = 'Semantic layer for staff analytics - HR metrics and workforce';
+
+CREATE SCHEMA IF NOT EXISTS SEM_DEV.SEM_GOVERNANCE
+    COMMENT = 'Semantic layer for governance analytics - contracts and data quality';
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- SEMANTIC VIEW: Student Enrollment Analytics
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Primary semantic view for student-related analytics
+-- Built on: DIM_STUDENT, DIM_SCHOOL, DIM_DISTRICT (CURATED layer)
+-- Used by: District Leadership, Principals, Registrars, BI Teams
+
+CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SEM_STUDENT.STUDENT_ENROLLMENT_ANALYTICS
+  TABLES (
+    students AS CURATED_DEV.CURATED_DIMENSIONS.DIM_STUDENT PRIMARY KEY (STUDENT_KEY),
+    schools AS CURATED_DEV.CURATED_DIMENSIONS.DIM_SCHOOL PRIMARY KEY (SCHOOL_KEY),
+    districts AS CURATED_DEV.CURATED_DIMENSIONS.DIM_DISTRICT PRIMARY KEY (DISTRICT_KEY)
+  )
+  RELATIONSHIPS (
+    students(CURRENT_SCHOOL_ID) REFERENCES schools(SCHOOL_ID),
+    students(CURRENT_DISTRICT_ID) REFERENCES districts(DISTRICT_ID),
+    schools(DISTRICT_ID) REFERENCES districts(DISTRICT_ID)
+  )
+  DIMENSIONS (
+    -- Student dimensions
+    students.STUDENT_ID AS STUDENT_ID COMMENT 'Unique student identifier',
+    students.DISPLAY_NAME AS DISPLAY_NAME COMMENT 'Student display name (first name + last initial)',
+    students.GRADE_LEVEL AS GRADE_LEVEL COMMENT 'Current grade level (PK-12)',
+    students.GRADE_LEVEL_CATEGORY AS GRADE_LEVEL_CATEGORY COMMENT 'Elementary, Middle, or High',
+    students.ENROLLMENT_STATUS AS ENROLLMENT_STATUS COMMENT 'Active, Withdrawn, Graduated, etc.',
+    students.COHORT_YEAR AS COHORT_YEAR COMMENT 'Expected graduation year',
+    students.AGE AS AGE COMMENT 'Current age in years',
+    students.GENDER AS GENDER COMMENT 'Student gender',
+    students.ETHNICITY AS ETHNICITY COMMENT 'Student ethnicity',
+    students.PRIMARY_LANGUAGE AS PRIMARY_LANGUAGE COMMENT 'Primary language spoken',
+    students.ELL_STATUS AS ELL_STATUS COMMENT 'English Language Learner status',
+    students.SPECIAL_EDUCATION AS SPECIAL_EDUCATION COMMENT 'Has IEP (Individualized Education Program)',
+    students.SECTION_504 AS SECTION_504 COMMENT 'Has 504 accommodation plan',
+    students.GIFTED_TALENTED AS GIFTED_TALENTED COMMENT 'Enrolled in gifted/talented program',
+    students.FREE_REDUCED_LUNCH AS FREE_REDUCED_LUNCH COMMENT 'Free/Reduced lunch eligibility',
+    students.HOMELESS_STATUS AS HOMELESS_STATUS COMMENT 'McKinney-Vento homeless status',
+    students.AT_RISK_FLAG AS AT_RISK_FLAG COMMENT 'Student at-risk indicator',
+    students.PROGRAM_COUNT AS PROGRAM_COUNT COMMENT 'Number of special programs enrolled',
+    
+    -- School dimensions
+    schools.SCHOOL_ID AS SCHOOL_ID COMMENT 'Unique school identifier',
+    schools.SCHOOL_NAME AS SCHOOL_NAME COMMENT 'School name',
+    schools.SCHOOL_TYPE AS SCHOOL_TYPE COMMENT 'Elementary, Middle, High School',
+    schools.IS_TITLE_I AS IS_TITLE_I COMMENT 'Title I eligible school',
+    schools.IS_MAGNET AS IS_MAGNET COMMENT 'Magnet school',
+    schools.IS_CHARTER AS IS_CHARTER COMMENT 'Charter school',
+    schools.CITY AS SCHOOL_CITY COMMENT 'City where school is located',
+    schools.COUNTY AS SCHOOL_COUNTY COMMENT 'County where school is located',
+    schools.ACCOUNTABILITY_RATING AS ACCOUNTABILITY_RATING COMMENT 'State accountability rating',
+    schools.CAPACITY_STATUS AS CAPACITY_STATUS COMMENT 'Over/Under/Optimal capacity',
+    
+    -- District dimensions
+    districts.DISTRICT_ID AS DISTRICT_ID COMMENT 'Unique district identifier',
+    districts.DISTRICT_NAME AS DISTRICT_NAME COMMENT 'District name',
+    districts.COUNTY AS DISTRICT_COUNTY COMMENT 'Primary county of district',
+    districts.SUPERINTENDENT_NAME AS SUPERINTENDENT_NAME COMMENT 'District superintendent'
+  )
+  METRICS (
+    -- Student counts
+    students.student_count AS COUNT(students.STUDENT_KEY) COMMENT 'Total number of students',
+    students.active_students AS COUNT_IF(students.ENROLLMENT_STATUS = 'Active', students.STUDENT_KEY) COMMENT 'Active enrolled students',
+    students.at_risk_count AS SUM(CASE WHEN students.AT_RISK_FLAG THEN 1 ELSE 0 END) COMMENT 'Students flagged as at-risk',
+    
+    -- Program participation counts
+    students.ell_count AS SUM(CASE WHEN students.ELL_STATUS THEN 1 ELSE 0 END) COMMENT 'English Language Learners count',
+    students.sped_count AS SUM(CASE WHEN students.SPECIAL_EDUCATION THEN 1 ELSE 0 END) COMMENT 'Special Education students count',
+    students.section504_count AS SUM(CASE WHEN students.SECTION_504 THEN 1 ELSE 0 END) COMMENT 'Section 504 students count',
+    students.gifted_count AS SUM(CASE WHEN students.GIFTED_TALENTED THEN 1 ELSE 0 END) COMMENT 'Gifted/Talented students count',
+    students.frl_count AS SUM(CASE WHEN students.FREE_REDUCED_LUNCH IN ('Free', 'Reduced') THEN 1 ELSE 0 END) COMMENT 'Free/Reduced Lunch eligible count',
+    students.homeless_count AS SUM(CASE WHEN students.HOMELESS_STATUS THEN 1 ELSE 0 END) COMMENT 'Homeless students count',
+    
+    -- School counts
+    schools.school_count AS COUNT(DISTINCT schools.SCHOOL_KEY) COMMENT 'Number of schools',
+    schools.title_i_count AS SUM(CASE WHEN schools.IS_TITLE_I THEN 1 ELSE 0 END) COMMENT 'Number of Title I schools',
+    
+    -- Capacity metrics from schools
+    schools.total_capacity AS SUM(schools.BUILDING_CAPACITY) COMMENT 'Total building capacity',
+    schools.total_enrollment AS SUM(schools.CURRENT_ENROLLMENT) COMMENT 'Total current enrollment',
+    
+    -- Derived rates (calculated from base metrics)
+    ell_rate AS students.ell_count / NULLIF(students.student_count, 0) * 100 COMMENT 'ELL percentage',
+    sped_rate AS students.sped_count / NULLIF(students.student_count, 0) * 100 COMMENT 'Special Education percentage',
+    frl_rate AS students.frl_count / NULLIF(students.student_count, 0) * 100 COMMENT 'Free/Reduced Lunch percentage',
+    at_risk_rate AS students.at_risk_count / NULLIF(students.student_count, 0) * 100 COMMENT 'At-risk percentage',
+    capacity_utilization AS schools.total_enrollment / NULLIF(schools.total_capacity, 0) * 100 COMMENT 'Capacity utilization percentage'
+  )
+  COMMENT = 'Student enrollment analytics for district leadership and school administrators. Built on CURATED layer dimensions with enrollment metrics, demographics, and program participation rates.';
+
+-- Grant access to education roles
+GRANT SELECT, REFERENCES ON SEMANTIC VIEW SEM_DEV.SEM_STUDENT.STUDENT_ENROLLMENT_ANALYTICS TO ROLE DISTRICT_ADMIN;
+GRANT SELECT, REFERENCES ON SEMANTIC VIEW SEM_DEV.SEM_STUDENT.STUDENT_ENROLLMENT_ANALYTICS TO ROLE PRINCIPAL;
+GRANT SELECT, REFERENCES ON SEMANTIC VIEW SEM_DEV.SEM_STUDENT.STUDENT_ENROLLMENT_ANALYTICS TO ROLE REGISTRAR;
+GRANT SELECT, REFERENCES ON SEMANTIC VIEW SEM_DEV.SEM_STUDENT.STUDENT_ENROLLMENT_ANALYTICS TO ROLE AI_AGENT;
+GRANT SELECT, REFERENCES ON SEMANTIC VIEW SEM_DEV.SEM_STUDENT.STUDENT_ENROLLMENT_ANALYTICS TO ROLE BI_VIEWER;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- SEMANTIC VIEW: Student Demographics Analytics
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Focused view for demographic analysis and equity reporting
+-- Built on: DIM_STUDENT, DIM_SCHOOL (CURATED layer)
+
+CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SEM_STUDENT.STUDENT_DEMOGRAPHICS_ANALYTICS
+  TABLES (
+    students AS CURATED_DEV.CURATED_DIMENSIONS.DIM_STUDENT PRIMARY KEY (STUDENT_KEY),
+    schools AS CURATED_DEV.CURATED_DIMENSIONS.DIM_SCHOOL PRIMARY KEY (SCHOOL_KEY)
+  )
+  RELATIONSHIPS (
+    students(CURRENT_SCHOOL_ID) REFERENCES schools(SCHOOL_ID)
+  )
+  DIMENSIONS (
+    students.GRADE_LEVEL AS GRADE_LEVEL,
+    students.GRADE_LEVEL_CATEGORY AS GRADE_LEVEL_CATEGORY,
+    students.GENDER AS GENDER,
+    students.ETHNICITY AS ETHNICITY,
+    students.RACE AS RACE,
+    students.PRIMARY_LANGUAGE AS PRIMARY_LANGUAGE,
+    students.ELL_STATUS AS ELL_STATUS,
+    students.FREE_REDUCED_LUNCH AS FREE_REDUCED_LUNCH,
+    students.COUNTY AS STUDENT_COUNTY,
+    schools.SCHOOL_NAME AS SCHOOL_NAME,
+    schools.SCHOOL_TYPE AS SCHOOL_TYPE,
+    schools.COUNTY AS SCHOOL_COUNTY
+  )
+  METRICS (
+    students.student_count AS COUNT(students.STUDENT_KEY),
+    students.ell_count AS SUM(CASE WHEN students.ELL_STATUS THEN 1 ELSE 0 END),
+    students.frl_count AS SUM(CASE WHEN students.FREE_REDUCED_LUNCH IN ('Free', 'Reduced') THEN 1 ELSE 0 END),
+    
+    ell_rate AS students.ell_count / NULLIF(students.student_count, 0) * 100,
+    frl_rate AS students.frl_count / NULLIF(students.student_count, 0) * 100
+  )
+  COMMENT = 'Student demographics analytics for equity reporting and compliance. Built on CURATED DIM_STUDENT and DIM_SCHOOL.';
+
+GRANT SELECT, REFERENCES ON SEMANTIC VIEW SEM_DEV.SEM_STUDENT.STUDENT_DEMOGRAPHICS_ANALYTICS TO ROLE DISTRICT_ADMIN;
+GRANT SELECT, REFERENCES ON SEMANTIC VIEW SEM_DEV.SEM_STUDENT.STUDENT_DEMOGRAPHICS_ANALYTICS TO ROLE PRINCIPAL;
+GRANT SELECT, REFERENCES ON SEMANTIC VIEW SEM_DEV.SEM_STUDENT.STUDENT_DEMOGRAPHICS_ANALYTICS TO ROLE AI_AGENT;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- SEMANTIC VIEW: School Performance Analytics
+-- ─────────────────────────────────────────────────────────────────────────────
+-- School-level metrics for capacity, performance, and resource planning
+-- Built on: DIM_SCHOOL, DIM_DISTRICT, DIM_STAFF, FACT_SCHOOL_METRICS (CURATED layer)
+
+CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SEM_SCHOOL.SCHOOL_PERFORMANCE_ANALYTICS
+  TABLES (
+    schools AS CURATED_DEV.CURATED_DIMENSIONS.DIM_SCHOOL PRIMARY KEY (SCHOOL_KEY),
+    districts AS CURATED_DEV.CURATED_DIMENSIONS.DIM_DISTRICT PRIMARY KEY (DISTRICT_KEY),
+    metrics AS CURATED_DEV.CURATED_FACTS.FACT_SCHOOL_METRICS PRIMARY KEY (SCHOOL_ID)
+  )
+  RELATIONSHIPS (
+    schools(DISTRICT_ID) REFERENCES districts(DISTRICT_ID),
+    metrics(SCHOOL_ID) REFERENCES schools(SCHOOL_ID)
+  )
+  DIMENSIONS (
+    -- School dimensions
+    schools.SCHOOL_ID AS SCHOOL_ID,
+    schools.SCHOOL_NAME AS SCHOOL_NAME,
+    schools.SCHOOL_TYPE AS SCHOOL_TYPE,
+    schools.GRADE_LEVELS_SERVED AS GRADE_LEVELS_SERVED,
+    schools.IS_TITLE_I AS IS_TITLE_I,
+    schools.IS_MAGNET AS IS_MAGNET,
+    schools.IS_CHARTER AS IS_CHARTER,
+    schools.CITY AS CITY,
+    schools.COUNTY AS COUNTY,
+    schools.ACCOUNTABILITY_RATING AS ACCOUNTABILITY_RATING,
+    schools.CAPACITY_STATUS AS CAPACITY_STATUS,
+    schools.PRINCIPAL_NAME AS PRINCIPAL_NAME,
+    
+    -- District dimensions
+    districts.DISTRICT_NAME AS DISTRICT_NAME,
+    districts.SUPERINTENDENT_NAME AS SUPERINTENDENT_NAME
+  )
+  METRICS (
+    -- School counts
+    schools.school_count AS COUNT(DISTINCT schools.SCHOOL_KEY),
+    
+    -- Capacity metrics
+    schools.total_capacity AS SUM(schools.BUILDING_CAPACITY),
+    schools.total_enrollment AS SUM(schools.CURRENT_ENROLLMENT),
+    schools.total_staff AS SUM(schools.STAFF_COUNT),
+    schools.total_teachers AS SUM(schools.TEACHER_COUNT),
+    
+    -- Performance from school dimension
+    schools.avg_graduation_rate AS AVG(schools.GRADUATION_RATE),
+    schools.avg_attendance_rate AS AVG(schools.ATTENDANCE_RATE),
+    
+    -- Metrics from fact table
+    metrics.total_students AS SUM(metrics.TOTAL_STUDENTS),
+    metrics.ell_students AS SUM(metrics.ELL_STUDENTS),
+    metrics.sped_students AS SUM(metrics.SPED_STUDENTS),
+    metrics.frl_students AS SUM(metrics.FRL_STUDENTS),
+    
+    -- Derived metrics
+    capacity_utilization AS schools.total_enrollment / NULLIF(schools.total_capacity, 0) * 100,
+    student_teacher_ratio AS schools.total_enrollment / NULLIF(schools.total_teachers, 0),
+    avg_capacity_utilization AS AVG(schools.CAPACITY_UTILIZATION_PCT)
+  )
+  COMMENT = 'School performance analytics for capacity planning, staffing, and accountability. Built on CURATED DIM_SCHOOL, DIM_DISTRICT, and FACT_SCHOOL_METRICS.';
+
+GRANT SELECT, REFERENCES ON SEMANTIC VIEW SEM_DEV.SEM_SCHOOL.SCHOOL_PERFORMANCE_ANALYTICS TO ROLE DISTRICT_ADMIN;
+GRANT SELECT, REFERENCES ON SEMANTIC VIEW SEM_DEV.SEM_SCHOOL.SCHOOL_PERFORMANCE_ANALYTICS TO ROLE PRINCIPAL;
+GRANT SELECT, REFERENCES ON SEMANTIC VIEW SEM_DEV.SEM_SCHOOL.SCHOOL_PERFORMANCE_ANALYTICS TO ROLE AI_AGENT;
+GRANT SELECT, REFERENCES ON SEMANTIC VIEW SEM_DEV.SEM_SCHOOL.SCHOOL_PERFORMANCE_ANALYTICS TO ROLE BI_VIEWER;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- SEMANTIC VIEW: Staff Workforce Analytics
+-- ─────────────────────────────────────────────────────────────────────────────
+-- HR and workforce analytics for staff management
+-- Built on: DIM_STAFF, DIM_SCHOOL, FACT_STAFF_SUMMARY (CURATED layer)
+
+CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SEM_STAFF.STAFF_WORKFORCE_ANALYTICS
+  TABLES (
+    staff AS CURATED_DEV.CURATED_DIMENSIONS.DIM_STAFF PRIMARY KEY (STAFF_KEY),
+    schools AS CURATED_DEV.CURATED_DIMENSIONS.DIM_SCHOOL PRIMARY KEY (SCHOOL_KEY),
+    summary AS CURATED_DEV.CURATED_FACTS.FACT_STAFF_SUMMARY PRIMARY KEY (SCHOOL_ID, ROLE_CATEGORY, DEPARTMENT)
+  )
+  RELATIONSHIPS (
+    staff(PRIMARY_SCHOOL_ID) REFERENCES schools(SCHOOL_ID),
+    summary(SCHOOL_ID) REFERENCES schools(SCHOOL_ID)
+  )
+  DIMENSIONS (
+    staff.STAFF_ID AS STAFF_ID,
+    staff.DISPLAY_NAME AS DISPLAY_NAME,
+    staff.EMPLOYEE_TYPE AS EMPLOYEE_TYPE,
+    staff.POSITION_TITLE AS POSITION_TITLE,
+    staff.ROLE_CATEGORY AS ROLE_CATEGORY,
+    staff.DEPARTMENT AS DEPARTMENT,
+    staff.EMPLOYMENT_STATUS AS EMPLOYMENT_STATUS,
+    staff.HIGHEST_DEGREE AS HIGHEST_DEGREE,
+    staff.HIGHLY_QUALIFIED AS HIGHLY_QUALIFIED,
+    staff.LICENSE_STATUS AS LICENSE_STATUS,
+    staff.SALARY_BAND AS SALARY_BAND,
+    staff.IS_TEACHER AS IS_TEACHER,
+    staff.IS_ADMINISTRATOR AS IS_ADMINISTRATOR,
+    schools.SCHOOL_NAME AS SCHOOL_NAME,
+    schools.SCHOOL_TYPE AS SCHOOL_TYPE,
+    schools.COUNTY AS COUNTY
+  )
+  METRICS (
+    -- Staff counts from dimension
+    staff.staff_count AS COUNT(staff.STAFF_KEY),
+    staff.active_staff AS COUNT_IF(staff.EMPLOYMENT_STATUS = 'Active', staff.STAFF_KEY),
+    staff.teacher_count AS COUNT_IF(staff.IS_TEACHER, staff.STAFF_KEY),
+    staff.admin_count AS COUNT_IF(staff.IS_ADMINISTRATOR, staff.STAFF_KEY),
+    
+    -- Experience metrics
+    staff.total_experience_years AS SUM(staff.YEARS_EXPERIENCE),
+    staff.avg_experience AS AVG(staff.YEARS_EXPERIENCE),
+    staff.avg_tenure AS AVG(staff.TENURE_YEARS),
+    
+    -- Qualifications
+    staff.highly_qualified_count AS SUM(CASE WHEN staff.HIGHLY_QUALIFIED THEN 1 ELSE 0 END),
+    
+    -- Summary fact metrics
+    summary.avg_summary_experience AS AVG(summary.AVG_YEARS_EXPERIENCE),
+    summary.total_hq_rate AS AVG(summary.HIGHLY_QUALIFIED_RATE),
+    
+    -- Derived metrics
+    highly_qualified_rate AS staff.highly_qualified_count / NULLIF(staff.teacher_count, 0) * 100
+  )
+  COMMENT = 'Staff workforce analytics for HR management and staffing decisions. Built on CURATED DIM_STAFF and FACT_STAFF_SUMMARY.';
+
+-- More restricted access for HR data
+GRANT SELECT, REFERENCES ON SEMANTIC VIEW SEM_DEV.SEM_STAFF.STAFF_WORKFORCE_ANALYTICS TO ROLE DISTRICT_ADMIN;
+GRANT SELECT, REFERENCES ON SEMANTIC VIEW SEM_DEV.SEM_STAFF.STAFF_WORKFORCE_ANALYTICS TO ROLE DATA_ADMIN;
+GRANT SELECT, REFERENCES ON SEMANTIC VIEW SEM_DEV.SEM_STAFF.STAFF_WORKFORCE_ANALYTICS TO ROLE AI_AGENT;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- SEMANTIC VIEW: Enrollment Summary Analytics
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Aggregate enrollment metrics by school and grade
+-- Built on: FACT_ENROLLMENT_SUMMARY, DIM_SCHOOL (CURATED layer)
+
+CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SEM_STUDENT.ENROLLMENT_SUMMARY_ANALYTICS
+  TABLES (
+    enrollment AS CURATED_DEV.CURATED_FACTS.FACT_ENROLLMENT_SUMMARY PRIMARY KEY (SCHOOL_ID, GRADE_LEVEL),
+    schools AS CURATED_DEV.CURATED_DIMENSIONS.DIM_SCHOOL PRIMARY KEY (SCHOOL_KEY),
+    districts AS CURATED_DEV.CURATED_DIMENSIONS.DIM_DISTRICT PRIMARY KEY (DISTRICT_KEY)
+  )
+  RELATIONSHIPS (
+    enrollment(SCHOOL_ID) REFERENCES schools(SCHOOL_ID),
+    enrollment(DISTRICT_ID) REFERENCES districts(DISTRICT_ID)
+  )
+  DIMENSIONS (
+    enrollment.GRADE_LEVEL AS GRADE_LEVEL,
+    schools.SCHOOL_ID AS SCHOOL_ID,
+    schools.SCHOOL_NAME AS SCHOOL_NAME,
+    schools.SCHOOL_TYPE AS SCHOOL_TYPE,
+    schools.COUNTY AS COUNTY,
+    districts.DISTRICT_ID AS DISTRICT_ID,
+    districts.DISTRICT_NAME AS DISTRICT_NAME
+  )
+  METRICS (
+    enrollment.student_count AS SUM(enrollment.STUDENT_COUNT),
+    enrollment.active_count AS SUM(enrollment.ACTIVE_COUNT),
+    enrollment.ell_count AS SUM(enrollment.ELL_COUNT),
+    enrollment.sped_count AS SUM(enrollment.SPED_COUNT),
+    enrollment.frl_count AS SUM(enrollment.FRL_COUNT),
+    enrollment.homeless_count AS SUM(enrollment.HOMELESS_COUNT),
+    
+    ell_rate AS enrollment.ell_count / NULLIF(enrollment.student_count, 0) * 100,
+    sped_rate AS enrollment.sped_count / NULLIF(enrollment.student_count, 0) * 100,
+    frl_rate AS enrollment.frl_count / NULLIF(enrollment.student_count, 0) * 100
+  )
+  COMMENT = 'Enrollment summary analytics for aggregate reporting. Built on CURATED FACT_ENROLLMENT_SUMMARY.';
+
+GRANT SELECT, REFERENCES ON SEMANTIC VIEW SEM_DEV.SEM_STUDENT.ENROLLMENT_SUMMARY_ANALYTICS TO ROLE DISTRICT_ADMIN;
+GRANT SELECT, REFERENCES ON SEMANTIC VIEW SEM_DEV.SEM_STUDENT.ENROLLMENT_SUMMARY_ANALYTICS TO ROLE PRINCIPAL;
+GRANT SELECT, REFERENCES ON SEMANTIC VIEW SEM_DEV.SEM_STUDENT.ENROLLMENT_SUMMARY_ANALYTICS TO ROLE TEACHER;
+GRANT SELECT, REFERENCES ON SEMANTIC VIEW SEM_DEV.SEM_STUDENT.ENROLLMENT_SUMMARY_ANALYTICS TO ROLE AI_AGENT;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- SEMANTIC VIEW: Governance Analytics
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Contract health and data quality monitoring
+-- Built on: GOVERNANCE.CONTRACT_REGISTRY tables
+
+CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SEM_GOVERNANCE.GOVERNANCE_ANALYTICS
+  TABLES (
+    contracts AS GOVERNANCE.CONTRACT_REGISTRY.CONTRACTS PRIMARY KEY (CONTRACT_ID),
+    consumers AS GOVERNANCE.CONTRACT_REGISTRY.CONSUMERS PRIMARY KEY (CONSUMER_ID),
+    quality_rules AS GOVERNANCE.CONTRACT_REGISTRY.QUALITY_RULES PRIMARY KEY (RULE_ID),
+    alerts AS GOVERNANCE.CONTRACT_REGISTRY.ALERTS PRIMARY KEY (ALERT_ID)
+  )
+  RELATIONSHIPS (
+    consumers(CONTRACT_ID) REFERENCES contracts(CONTRACT_ID),
+    quality_rules(CONTRACT_ID) REFERENCES contracts(CONTRACT_ID),
+    alerts(CONTRACT_ID) REFERENCES contracts(CONTRACT_ID)
+  )
+  DIMENSIONS (
+    contracts.CONTRACT_ID AS CONTRACT_ID COMMENT 'Unique contract identifier',
+    contracts.VERSION AS CONTRACT_VERSION COMMENT 'Contract version number',
+    contracts.STATUS AS CONTRACT_STATUS COMMENT 'Draft, Active, Deprecated',
+    contracts.CONTRACT_TYPE AS CONTRACT_TYPE COMMENT 'Data or Product contract',
+    contracts.PRODUCER_SYSTEM AS PRODUCER_SYSTEM COMMENT 'Source system producing data',
+    contracts.PRODUCER_TEAM AS PRODUCER_TEAM COMMENT 'Team responsible for contract',
+    contracts.GOVERNANCE_CLASSIFICATION AS CLASSIFICATION COMMENT 'Public, Confidential, Restricted',
+    contracts.HEALTH_STATUS AS HEALTH_STATUS COMMENT 'GREEN, YELLOW, RED',
+    quality_rules.RULE_NAME AS RULE_NAME COMMENT 'Quality rule name',
+    quality_rules.RULE_TYPE AS RULE_TYPE COMMENT 'Type of quality check',
+    quality_rules.SEVERITY AS RULE_SEVERITY COMMENT 'Error, Warning, Info',
+    alerts.ALERT_TYPE AS ALERT_TYPE COMMENT 'Type of alert',
+    alerts.SEVERITY AS ALERT_SEVERITY COMMENT 'Alert severity level',
+    alerts.STATUS AS ALERT_STATUS COMMENT 'Open, Acknowledged, Resolved'
+  )
+  METRICS (
+    -- Contract metrics
+    contracts.contract_count AS COUNT(contracts.CONTRACT_ID) COMMENT 'Total contracts',
+    contracts.active_contracts AS COUNT_IF(contracts.STATUS = 'active', contracts.CONTRACT_ID) COMMENT 'Active contracts',
+    contracts.healthy_contracts AS COUNT_IF(contracts.HEALTH_STATUS = 'GREEN', contracts.CONTRACT_ID) COMMENT 'Healthy contracts',
+    contracts.warning_contracts AS COUNT_IF(contracts.HEALTH_STATUS = 'YELLOW', contracts.CONTRACT_ID) COMMENT 'Warning status contracts',
+    contracts.critical_contracts AS COUNT_IF(contracts.HEALTH_STATUS = 'RED', contracts.CONTRACT_ID) COMMENT 'Critical status contracts',
+    
+    -- Consumer metrics
+    consumers.consumer_count AS COUNT(consumers.CONSUMER_ID) COMMENT 'Total consumers',
+    consumers.active_consumers AS COUNT_IF(consumers.IS_ACTIVE, consumers.CONSUMER_ID) COMMENT 'Active consumers',
+    
+    -- Quality rule metrics  
+    quality_rules.rule_count AS COUNT(quality_rules.RULE_ID) COMMENT 'Total quality rules',
+    quality_rules.active_rules AS COUNT_IF(quality_rules.IS_ACTIVE, quality_rules.RULE_ID) COMMENT 'Active quality rules',
+    
+    -- Alert metrics
+    alerts.alert_count AS COUNT(alerts.ALERT_ID) COMMENT 'Total alerts',
+    alerts.open_alerts AS COUNT_IF(alerts.STATUS = 'OPEN', alerts.ALERT_ID) COMMENT 'Open alerts',
+    alerts.critical_alerts AS COUNT_IF(alerts.SEVERITY = 'error' AND alerts.STATUS = 'OPEN', alerts.ALERT_ID) COMMENT 'Critical open alerts',
+    
+    -- Derived metrics
+    avg_consumers_per_contract AS consumers.consumer_count / NULLIF(contracts.contract_count, 0) COMMENT 'Average consumers per contract',
+    avg_rules_per_contract AS quality_rules.rule_count / NULLIF(contracts.contract_count, 0) COMMENT 'Average rules per contract',
+    health_score AS contracts.healthy_contracts / NULLIF(contracts.active_contracts, 0) * 100 COMMENT 'Overall health percentage'
+  )
+  COMMENT = 'Governance analytics for monitoring contract health, data quality, and compliance. Built on GOVERNANCE.CONTRACT_REGISTRY tables.';
+
+GRANT SELECT, REFERENCES ON SEMANTIC VIEW SEM_DEV.SEM_GOVERNANCE.GOVERNANCE_ANALYTICS TO ROLE DATA_ADMIN;
+GRANT SELECT, REFERENCES ON SEMANTIC VIEW SEM_DEV.SEM_GOVERNANCE.GOVERNANCE_ANALYTICS TO ROLE DATA_STEWARD;
+GRANT SELECT, REFERENCES ON SEMANTIC VIEW SEM_DEV.SEM_GOVERNANCE.GOVERNANCE_ANALYTICS TO ROLE DATA_ENGINEER;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- SEMANTIC VIEW: Data Quality Analytics
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Focused view for data quality rule monitoring
+
+CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SEM_GOVERNANCE.DATA_QUALITY_ANALYTICS
+  TABLES (
+    contracts AS GOVERNANCE.CONTRACT_REGISTRY.CONTRACTS PRIMARY KEY (CONTRACT_ID),
+    quality_rules AS GOVERNANCE.CONTRACT_REGISTRY.QUALITY_RULES PRIMARY KEY (RULE_ID),
+    results AS GOVERNANCE.CONTRACT_REGISTRY.QUALITY_RULE_RESULTS PRIMARY KEY (RESULT_ID)
+  )
+  RELATIONSHIPS (
+    quality_rules(CONTRACT_ID) REFERENCES contracts(CONTRACT_ID),
+    results(RULE_ID) REFERENCES quality_rules(RULE_ID)
+  )
+  DIMENSIONS (
+    contracts.CONTRACT_ID AS CONTRACT_ID,
+    contracts.PRODUCER_SYSTEM AS PRODUCER_SYSTEM,
+    contracts.PRODUCER_TEAM AS PRODUCER_TEAM,
+    quality_rules.RULE_ID AS RULE_ID,
+    quality_rules.RULE_NAME AS RULE_NAME,
+    quality_rules.RULE_TYPE AS RULE_TYPE,
+    quality_rules.TARGET_COLUMN AS TARGET_COLUMN,
+    quality_rules.SEVERITY AS SEVERITY,
+    results.STATUS AS CHECK_STATUS
+  )
+  METRICS (
+    -- Rule metrics
+    quality_rules.rule_count AS COUNT(quality_rules.RULE_ID),
+    quality_rules.active_rules AS COUNT_IF(quality_rules.IS_ACTIVE, quality_rules.RULE_ID),
+    
+    -- Result metrics
+    results.check_count AS COUNT(results.RESULT_ID),
+    results.passed_checks AS COUNT_IF(results.STATUS = 'PASS', results.RESULT_ID),
+    results.failed_checks AS COUNT_IF(results.STATUS = 'FAIL', results.RESULT_ID),
+    results.total_records_checked AS SUM(results.RECORDS_CHECKED),
+    results.total_records_failed AS SUM(results.RECORDS_FAILED),
+    
+    -- Derived metrics
+    pass_rate AS results.passed_checks / NULLIF(results.check_count, 0) * 100,
+    record_pass_rate AS (results.total_records_checked - results.total_records_failed) / NULLIF(results.total_records_checked, 0) * 100
+  )
+  COMMENT = 'Data quality analytics for monitoring rule execution and pass rates. Built on GOVERNANCE.CONTRACT_REGISTRY.';
+
+GRANT SELECT, REFERENCES ON SEMANTIC VIEW SEM_DEV.SEM_GOVERNANCE.DATA_QUALITY_ANALYTICS TO ROLE DATA_ADMIN;
+GRANT SELECT, REFERENCES ON SEMANTIC VIEW SEM_DEV.SEM_GOVERNANCE.DATA_QUALITY_ANALYTICS TO ROLE DATA_STEWARD;
+GRANT SELECT, REFERENCES ON SEMANTIC VIEW SEM_DEV.SEM_GOVERNANCE.DATA_QUALITY_ANALYTICS TO ROLE DATA_ENGINEER;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- SEMANTIC VIEW: FERPA Compliance Analytics  
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Education-specific compliance monitoring
+
+CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SEM_GOVERNANCE.FERPA_COMPLIANCE_ANALYTICS
+  TABLES (
+    contracts AS GOVERNANCE.CONTRACT_REGISTRY.CONTRACTS PRIMARY KEY (CONTRACT_ID),
+    consumers AS GOVERNANCE.CONTRACT_REGISTRY.CONSUMERS PRIMARY KEY (CONSUMER_ID)
+  )
+  RELATIONSHIPS (
+    consumers(CONTRACT_ID) REFERENCES contracts(CONTRACT_ID)
+  )
+  DIMENSIONS (
+    contracts.CONTRACT_ID AS CONTRACT_ID,
+    contracts.PRODUCER_SYSTEM AS PRODUCER_SYSTEM,
+    contracts.GOVERNANCE_CLASSIFICATION AS DATA_CLASSIFICATION,
+    contracts.AI_ELIGIBILITY AS AI_ELIGIBILITY,
+    consumers.CONSUMER_TEAM AS CONSUMER_TEAM,
+    consumers.ACCESS_LEVEL AS ACCESS_LEVEL,
+    consumers.USE_CASE AS USE_CASE
+  )
+  METRICS (
+    -- Contract classification counts
+    contracts.total_contracts AS COUNT(contracts.CONTRACT_ID),
+    contracts.restricted_contracts AS COUNT_IF(contracts.GOVERNANCE_CLASSIFICATION = 'RESTRICTED', contracts.CONTRACT_ID),
+    contracts.confidential_contracts AS COUNT_IF(contracts.GOVERNANCE_CLASSIFICATION = 'CONFIDENTIAL', contracts.CONTRACT_ID),
+    contracts.public_contracts AS COUNT_IF(contracts.GOVERNANCE_CLASSIFICATION = 'PUBLIC', contracts.CONTRACT_ID),
+    
+    -- AI eligibility
+    contracts.ai_allowed AS COUNT_IF(contracts.AI_ELIGIBILITY = 'TRUE', contracts.CONTRACT_ID),
+    contracts.ai_aggregated_only AS COUNT_IF(contracts.AI_ELIGIBILITY = 'AGGREGATED_ONLY', contracts.CONTRACT_ID),
+    contracts.ai_pseudonymized AS COUNT_IF(contracts.AI_ELIGIBILITY = 'PSEUDONYMIZED_ONLY', contracts.CONTRACT_ID),
+    
+    -- Consumer access
+    consumers.consumer_count AS COUNT(consumers.CONSUMER_ID),
+    consumers.full_access AS COUNT_IF(consumers.ACCESS_LEVEL = 'read_full', consumers.CONSUMER_ID),
+    consumers.masked_access AS COUNT_IF(consumers.ACCESS_LEVEL = 'read_masked', consumers.CONSUMER_ID)
+  )
+  COMMENT = 'FERPA compliance analytics for education data governance monitoring. Built on GOVERNANCE.CONTRACT_REGISTRY.';
+
+GRANT SELECT, REFERENCES ON SEMANTIC VIEW SEM_DEV.SEM_GOVERNANCE.FERPA_COMPLIANCE_ANALYTICS TO ROLE DATA_ADMIN;
+GRANT SELECT, REFERENCES ON SEMANTIC VIEW SEM_DEV.SEM_GOVERNANCE.FERPA_COMPLIANCE_ANALYTICS TO ROLE DATA_STEWARD;
+GRANT SELECT, REFERENCES ON SEMANTIC VIEW SEM_DEV.SEM_GOVERNANCE.FERPA_COMPLIANCE_ANALYTICS TO ROLE DISTRICT_ADMIN;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- VERIFICATION
+-- ─────────────────────────────────────────────────────────────────────────────
+
+SELECT 'Semantic Views Created Successfully' AS STATUS;
+
+SHOW SEMANTIC VIEWS IN DATABASE SEM_DEV;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- NOTES FOR CORTEX ANALYST
+-- ─────────────────────────────────────────────────────────────────────────────
+/*
+Architecture Flow:
+  RAW Layer (RAW_DEV) → CURATED Layer (CURATED_DEV) → SEMANTIC Layer (SEM_DEV)
+                        [Dynamic Tables]              [Semantic Views]
+
+Available Semantic Views (all built on CURATED layer):
+
+STUDENT ANALYTICS:
+- SEM_DEV.SEM_STUDENT.STUDENT_ENROLLMENT_ANALYTICS 
+    → Built on: DIM_STUDENT, DIM_SCHOOL, DIM_DISTRICT
+- SEM_DEV.SEM_STUDENT.STUDENT_DEMOGRAPHICS_ANALYTICS 
+    → Built on: DIM_STUDENT, DIM_SCHOOL
+- SEM_DEV.SEM_STUDENT.ENROLLMENT_SUMMARY_ANALYTICS 
+    → Built on: FACT_ENROLLMENT_SUMMARY, DIM_SCHOOL
+
+SCHOOL ANALYTICS:
+- SEM_DEV.SEM_SCHOOL.SCHOOL_PERFORMANCE_ANALYTICS 
+    → Built on: DIM_SCHOOL, DIM_DISTRICT, FACT_SCHOOL_METRICS
+
+STAFF ANALYTICS:  
+- SEM_DEV.SEM_STAFF.STAFF_WORKFORCE_ANALYTICS 
+    → Built on: DIM_STAFF, DIM_SCHOOL, FACT_STAFF_SUMMARY
+
+GOVERNANCE ANALYTICS:
+- SEM_DEV.SEM_GOVERNANCE.GOVERNANCE_ANALYTICS 
+    → Built on: CONTRACT_REGISTRY tables
+- SEM_DEV.SEM_GOVERNANCE.DATA_QUALITY_ANALYTICS 
+    → Built on: CONTRACT_REGISTRY tables
+- SEM_DEV.SEM_GOVERNANCE.FERPA_COMPLIANCE_ANALYTICS 
+    → Built on: CONTRACT_REGISTRY tables
+
+Sample Cortex Analyst Questions:
+- "How many students are enrolled in high schools?"
+- "What is the ELL rate by district?"
+- "Which schools have the highest capacity utilization?"
+- "Show me student demographics by school type"
+- "What is the average student-teacher ratio?"
+- "How many contracts are in healthy status?"
+- "What is the data quality pass rate?"
+*/

@@ -1,0 +1,572 @@
+# ============================================================================
+# DATA CONTRACT: Student Data
+# ============================================================================
+# Producer: Student Information System (SIS)
+# Source: Synthetic Massachusetts School District Data
+# Updated: 2026-01-22
+# ============================================================================
+
+contract:
+  # ─────────────────────────────────────────────────────────────────────────
+  # IDENTITY & OWNERSHIP
+  # ─────────────────────────────────────────────────────────────────────────
+  id: student_v1
+  version: 1.0.0
+  status: active
+  
+  producer:
+    system: STUDENT_INFORMATION_SYSTEM
+    team: Student Data Services
+    owner: sis-team@district.edu
+    slack_channel: "#sis-data"
+  
+  # ─────────────────────────────────────────────────────────────────────────
+  # SCHEMA DEFINITION
+  # ─────────────────────────────────────────────────────────────────────────
+  schema:
+    database: RAW_${ENV}
+    schema: RAW_SIS
+    table: STUDENT_RAW
+    
+    columns:
+      # ── Primary Key ──
+      - name: STUDENT_ID
+        type: VARCHAR(20)
+        description: "Unique student identifier (state assigned SASID)"
+        constraints:
+          - not_null
+          - unique
+          - primary_key
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: MODERATE
+          AI_ALLOWED: PSEUDONYMIZED_ONLY
+          FERPA_CATEGORY: EDUCATIONAL_RECORD
+          
+      # ── Personal Information ──
+      - name: FIRST_NAME
+        type: VARCHAR(50)
+        description: "Student legal first name"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: MODERATE
+          AI_ALLOWED: PSEUDONYMIZED_ONLY
+          FERPA_CATEGORY: DIRECTORY
+          
+      - name: MIDDLE_NAME
+        type: VARCHAR(50)
+        description: "Student middle name"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: MODERATE
+          AI_ALLOWED: PSEUDONYMIZED_ONLY
+          FERPA_CATEGORY: DIRECTORY
+          
+      - name: LAST_NAME
+        type: VARCHAR(50)
+        description: "Student legal last name"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: MODERATE
+          AI_ALLOWED: PSEUDONYMIZED_ONLY
+          FERPA_CATEGORY: DIRECTORY
+          
+      - name: PREFERRED_NAME
+        type: VARCHAR(50)
+        description: "Student preferred/nickname"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: MODERATE
+          AI_ALLOWED: PSEUDONYMIZED_ONLY
+          FERPA_CATEGORY: DIRECTORY
+          
+      - name: SUFFIX
+        type: VARCHAR(10)
+        description: "Name suffix (Jr., III, etc.)"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: LOW
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: DIRECTORY
+
+      # ── Sensitive Identifiers ──
+      - name: SSN
+        type: VARCHAR(11)
+        description: "Social Security Number (XXX-XX-XXXX format)"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: RESTRICTED
+          PII_TYPE: HIGH
+          AI_ALLOWED: "FALSE"
+          FERPA_CATEGORY: SENSITIVE
+          RESIDENCY_REGION: US_ONLY
+          
+      - name: STATE_ID
+        type: VARCHAR(20)
+        description: "Massachusetts State Assigned Student ID (SASID)"
+        constraints:
+          - not_null
+          - unique
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: MODERATE
+          AI_ALLOWED: PSEUDONYMIZED_ONLY
+          FERPA_CATEGORY: EDUCATIONAL_RECORD
+          
+      # ── Demographics ──
+      - name: DATE_OF_BIRTH
+        type: DATE
+        description: "Student date of birth"
+        constraints:
+          - not_null
+        tests:
+          - type: range
+            min: "2005-01-01"
+            max: "2022-12-31"
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: MODERATE
+          AI_ALLOWED: AGGREGATED_ONLY
+          FERPA_CATEGORY: EDUCATIONAL_RECORD
+          
+      - name: GENDER
+        type: VARCHAR(20)
+        description: "Student gender identity"
+        constraints: []
+        tests:
+          - type: accepted_values
+            values: ["Male", "Female", "Non-binary", "Other", "Prefer not to say"]
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: LOW
+          AI_ALLOWED: AGGREGATED_ONLY
+          FERPA_CATEGORY: DIRECTORY
+          
+      - name: ETHNICITY
+        type: VARCHAR(50)
+        description: "Student ethnicity (federal reporting categories)"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: LOW
+          AI_ALLOWED: AGGREGATED_ONLY
+          FERPA_CATEGORY: DIRECTORY
+          
+      - name: RACE
+        type: VARCHAR(100)
+        description: "Student race(s) - may be multi-valued"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: LOW
+          AI_ALLOWED: AGGREGATED_ONLY
+          FERPA_CATEGORY: DIRECTORY
+          
+      - name: PRIMARY_LANGUAGE
+        type: VARCHAR(50)
+        description: "Primary language spoken at home"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: LOW
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: EDUCATIONAL_RECORD
+          
+      - name: ELL_STATUS
+        type: BOOLEAN
+        description: "English Language Learner status"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: LOW
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: EDUCATIONAL_RECORD
+
+      # ── Address Information ──
+      - name: HOME_ADDRESS_LINE1
+        type: VARCHAR(100)
+        description: "Street address line 1"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: MODERATE
+          AI_ALLOWED: "FALSE"
+          FERPA_CATEGORY: DIRECTORY
+          RESIDENCY_REGION: ORIGIN
+          
+      - name: HOME_ADDRESS_LINE2
+        type: VARCHAR(100)
+        description: "Street address line 2 (apt, unit, etc.)"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: MODERATE
+          AI_ALLOWED: "FALSE"
+          FERPA_CATEGORY: DIRECTORY
+          
+      - name: CITY
+        type: VARCHAR(50)
+        description: "City of residence"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: LOW
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: DIRECTORY
+          
+      - name: STATE
+        type: VARCHAR(2)
+        description: "State code (MA)"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: PUBLIC
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: DIRECTORY
+          
+      - name: ZIP_CODE
+        type: VARCHAR(10)
+        description: "ZIP code (5 or 9 digit)"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: LOW
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: DIRECTORY
+          
+      - name: COUNTY
+        type: VARCHAR(50)
+        description: "County of residence"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: PUBLIC
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: DIRECTORY
+
+      # ── School Assignment ──
+      - name: CURRENT_SCHOOL_ID
+        type: VARCHAR(20)
+        description: "Current school assignment (FK to SCHOOL)"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: DIRECTORY
+          
+      - name: CURRENT_DISTRICT_ID
+        type: VARCHAR(20)
+        description: "Current district (FK to DISTRICT)"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: DIRECTORY
+          
+      - name: GRADE_LEVEL
+        type: VARCHAR(5)
+        description: "Current grade level (K, 01-12)"
+        constraints:
+          - not_null
+        tests:
+          - type: accepted_values
+            values: ["PK", "K", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"]
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: DIRECTORY
+          
+      - name: HOMEROOM
+        type: VARCHAR(20)
+        description: "Homeroom assignment"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: DIRECTORY
+
+      # ── Enrollment Status ──
+      - name: ENROLLMENT_STATUS
+        type: VARCHAR(20)
+        description: "Current enrollment status"
+        constraints:
+          - not_null
+        tests:
+          - type: accepted_values
+            values: ["Active", "Inactive", "Withdrawn", "Graduated", "Transferred"]
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: EDUCATIONAL_RECORD
+          
+      - name: ENROLLMENT_DATE
+        type: DATE
+        description: "Date of first enrollment in current school"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: EDUCATIONAL_RECORD
+          
+      - name: EXPECTED_GRADUATION_YEAR
+        type: NUMBER(4)
+        description: "Expected graduation year"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: DIRECTORY
+
+      # ── Special Programs ──
+      - name: SPECIAL_EDUCATION
+        type: BOOLEAN
+        description: "Has IEP (Individualized Education Program)"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: RESTRICTED
+          PII_TYPE: HIGH
+          AI_ALLOWED: AGGREGATED_ONLY
+          FERPA_CATEGORY: SENSITIVE
+          
+      - name: SECTION_504
+        type: BOOLEAN
+        description: "Has Section 504 plan"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: RESTRICTED
+          PII_TYPE: HIGH
+          AI_ALLOWED: AGGREGATED_ONLY
+          FERPA_CATEGORY: HEALTH
+          
+      - name: GIFTED_TALENTED
+        type: BOOLEAN
+        description: "Enrolled in gifted/talented program"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: LOW
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: EDUCATIONAL_RECORD
+          
+      - name: FREE_REDUCED_LUNCH
+        type: VARCHAR(10)
+        description: "Free/Reduced lunch eligibility"
+        constraints: []
+        tests:
+          - type: accepted_values
+            values: ["Free", "Reduced", "Full", "Unknown"]
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: MODERATE
+          AI_ALLOWED: AGGREGATED_ONLY
+          FERPA_CATEGORY: SENSITIVE
+          
+      - name: HOMELESS_STATUS
+        type: BOOLEAN
+        description: "McKinney-Vento homeless status"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: RESTRICTED
+          PII_TYPE: HIGH
+          AI_ALLOWED: AGGREGATED_ONLY
+          FERPA_CATEGORY: SENSITIVE
+
+      # ── System Columns ──
+      - name: _LOADED_AT
+        type: TIMESTAMP_NTZ
+        description: "Snowflake ingestion timestamp"
+        constraints:
+          - not_null
+        system_managed: true
+        
+      - name: _SOURCE_SYSTEM
+        type: VARCHAR(50)
+        description: "Source system identifier"
+        system_managed: true
+        
+      - name: _ROW_HASH
+        type: VARCHAR(64)
+        description: "SHA256 hash of business columns for CDC"
+        system_managed: true
+        
+      - name: _IS_CURRENT
+        type: BOOLEAN
+        description: "SCD Type 2 current record flag"
+        system_managed: true
+        
+      - name: _VALID_FROM
+        type: TIMESTAMP_NTZ
+        description: "SCD Type 2 effective start"
+        system_managed: true
+        
+      - name: _VALID_TO
+        type: TIMESTAMP_NTZ
+        description: "SCD Type 2 effective end"
+        system_managed: true
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # SERVICE LEVEL AGREEMENTS
+  # ─────────────────────────────────────────────────────────────────────────
+  sla:
+    freshness:
+      max_age_minutes: 60
+      measurement: "MAX(_LOADED_AT) vs CURRENT_TIMESTAMP()"
+      
+    completeness:
+      threshold_percent: 99.9
+      critical_columns:
+        - STUDENT_ID
+        - FIRST_NAME
+        - LAST_NAME
+        - CURRENT_SCHOOL_ID
+        - GRADE_LEVEL
+        
+    availability:
+      uptime_percent: 99.9
+      maintenance_window: "Saturday 02:00-04:00 EST"
+      
+    volume:
+      expected_daily_rows:
+        min: 95000
+        max: 105000
+      alert_on_variance_percent: 5
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # QUALITY RULES
+  # ─────────────────────────────────────────────────────────────────────────
+  quality_rules:
+    - id: qr_001
+      name: valid_student_id
+      type: column_check
+      column: STUDENT_ID
+      sql: "STUDENT_ID IS NOT NULL AND LENGTH(STUDENT_ID) > 0"
+      severity: error
+      
+    - id: qr_002
+      name: valid_grade_level
+      type: column_check
+      column: GRADE_LEVEL
+      sql: "GRADE_LEVEL IN ('PK', 'K', '01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12')"
+      severity: error
+      
+    - id: qr_003
+      name: valid_dob_range
+      type: column_check
+      column: DATE_OF_BIRTH
+      sql: "DATE_OF_BIRTH BETWEEN '2005-01-01' AND CURRENT_DATE()"
+      severity: error
+      
+    - id: qr_004
+      name: valid_school_reference
+      type: cross_table_check
+      sql: "ALL CURRENT_SCHOOL_ID VALUES EXIST IN SCHOOL_RAW.SCHOOL_ID"
+      severity: error
+      
+    - id: qr_005
+      name: ssn_format
+      type: column_check
+      column: SSN
+      sql: "SSN IS NULL OR SSN REGEXP '^[0-9]{3}-[0-9]{2}-[0-9]{4}$'"
+      severity: warning
+      
+    - id: qr_006
+      name: no_duplicate_state_ids
+      type: table_check
+      sql: "COUNT(DISTINCT STATE_ID) = COUNT(*) WHERE _IS_CURRENT = TRUE"
+      severity: error
+      
+    - id: qr_007
+      name: active_students_have_school
+      type: table_check
+      sql: "ALL ACTIVE STUDENTS HAVE NON-NULL CURRENT_SCHOOL_ID"
+      severity: error
+      
+    - id: qr_008
+      name: valid_zip_format
+      type: column_check
+      column: ZIP_CODE
+      sql: "ZIP_CODE REGEXP '^[0-9]{5}(-[0-9]{4})?$'"
+      severity: warning
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # GOVERNANCE & COMPLIANCE
+  # ─────────────────────────────────────────────────────────────────────────
+  governance:
+    classification: RESTRICTED
+    residency_requirements:
+      - "SSN must not leave US region without explicit approval"
+      - "Student PII requires pseudonymization for AI workloads"
+      - "Health/504 data requires HIPAA-level protection"
+    retention_days: 2555  # 7 years after graduation
+    ai_eligibility: PSEUDONYMIZED_ONLY
+    compliance_frameworks:
+      - FERPA
+      - COPPA  # For students under 13
+      - State_Privacy_Laws
+    
+  # ─────────────────────────────────────────────────────────────────────────
+  # LINEAGE & DEPENDENCIES
+  # ─────────────────────────────────────────────────────────────────────────
+  lineage:
+    source_systems:
+      - name: PowerSchool SIS
+        connection: POWERSCHOOL_API
+        extraction: CDC_STREAM
+        
+    downstream_dependencies:
+      - contract_id: curated_dim_student_v1
+        type: transformation
+      - contract_id: sem_student_analytics_v1
+        type: product
+      - contract_id: sem_parent_portal_v1
+        type: product
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # CONSUMERS
+  # ─────────────────────────────────────────────────────────────────────────
+  consumers:
+    - team: District Analytics
+      contact: analytics@district.edu
+      use_case: District-wide enrollment and performance reporting
+      access_level: read_masked
+      
+    - team: School Leadership
+      contact: principals@district.edu
+      use_case: School-level student management
+      access_level: read_masked
+      
+    - team: Teachers
+      contact: teachers@district.edu
+      use_case: Classroom student information
+      access_level: read_masked
+      
+    - team: Parent Portal
+      contact: portal@district.edu
+      use_case: Parent access to their children's data
+      access_level: read_masked
+      
+    - team: State Reporting
+      contact: compliance@district.edu
+      use_case: DESE state reporting requirements
+      access_level: read_full

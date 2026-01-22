@@ -1,0 +1,226 @@
+# ============================================================================
+# PRODUCT CONTRACT: School Performance Analytics
+# ============================================================================
+# Consumer: District Leadership, Principals, Public Reporting
+# Output: Semantic view for school-level performance metrics
+# Updated: 2026-01-22
+# ============================================================================
+
+contract:
+  id: sem_school_performance_v1
+  version: 1.0.0
+  status: active
+  type: product
+  
+  producer:
+    system: SEMANTIC_LAYER
+    team: Analytics Platform
+    owner: analytics@district.edu
+    slack_channel: "#analytics-platform"
+  
+  output:
+    database: SEM_${ENV}
+    schema: SEM_SCHOOL
+    semantic_view: SCHOOL_PERFORMANCE
+    
+    description: |
+      School-level performance analytics including enrollment, attendance,
+      academic performance, and staffing metrics. Most data is public or 
+      internal classification with no PII concerns at the school aggregate level.
+    
+    dimensions:
+      - name: school_id
+        type: VARCHAR(20)
+        description: "Unique school identifier"
+        synonyms: ["school code"]
+        
+      - name: school_name
+        type: VARCHAR(100)
+        description: "Official school name"
+        synonyms: ["school", "building name"]
+        
+      - name: school_type
+        type: VARCHAR(30)
+        description: "School type (Elementary, Middle, High)"
+        synonyms: ["level", "school level"]
+        
+      - name: district_name
+        type: VARCHAR(100)
+        description: "District name"
+        synonyms: ["district"]
+        
+      - name: county
+        type: VARCHAR(50)
+        description: "County"
+        synonyms: ["county name"]
+        
+      - name: city
+        type: VARCHAR(50)
+        description: "City"
+        synonyms: ["municipality"]
+        
+      - name: is_title_i
+        type: BOOLEAN
+        description: "Title I school status"
+        synonyms: ["Title I"]
+        
+      - name: is_charter
+        type: BOOLEAN
+        description: "Charter school status"
+        synonyms: ["charter"]
+        
+      - name: accountability_rating
+        type: VARCHAR(20)
+        description: "State accountability rating"
+        synonyms: ["rating", "school rating"]
+        
+      - name: principal_name
+        type: VARCHAR(100)
+        description: "Current principal"
+        synonyms: ["principal"]
+        
+      - name: school_year
+        type: VARCHAR(10)
+        description: "Academic year"
+        synonyms: ["year"]
+        
+      - name: grade_levels_served
+        type: VARCHAR(20)
+        description: "Grade range served"
+        synonyms: ["grades"]
+
+    metrics:
+      - name: school_count
+        type: NUMBER
+        description: "Number of schools"
+        sql: "COUNT(DISTINCT school_id)"
+        synonyms: ["number of schools", "buildings"]
+        
+      - name: total_enrollment
+        type: NUMBER
+        description: "Total student enrollment"
+        sql: "SUM(current_enrollment)"
+        synonyms: ["enrollment", "students"]
+        
+      - name: average_enrollment
+        type: NUMBER
+        description: "Average enrollment per school"
+        sql: "AVG(current_enrollment)"
+        synonyms: ["avg enrollment"]
+        
+      - name: total_staff
+        type: NUMBER
+        description: "Total staff count"
+        sql: "SUM(staff_count)"
+        synonyms: ["staff", "employees"]
+        
+      - name: total_teachers
+        type: NUMBER
+        description: "Total teacher count"
+        sql: "SUM(teacher_count)"
+        synonyms: ["teachers"]
+        
+      - name: student_teacher_ratio
+        type: NUMBER(5,1)
+        description: "Average student to teacher ratio"
+        sql: "SUM(current_enrollment) / NULLIF(SUM(teacher_count), 0)"
+        synonyms: ["class size", "STR"]
+        
+      - name: capacity_utilization
+        type: NUMBER(5,2)
+        description: "Building capacity utilization percentage"
+        sql: "SUM(current_enrollment) / NULLIF(SUM(building_capacity), 0) * 100"
+        synonyms: ["utilization", "capacity used"]
+        
+      - name: average_attendance_rate
+        type: NUMBER(5,2)
+        description: "Average attendance rate"
+        sql: "AVG(attendance_rate)"
+        synonyms: ["attendance", "ADA"]
+        
+      - name: average_graduation_rate
+        type: NUMBER(5,2)
+        description: "Average 4-year graduation rate"
+        sql: "AVG(graduation_rate)"
+        synonyms: ["graduation rate", "grad rate"]
+        
+      - name: title_i_school_count
+        type: NUMBER
+        description: "Number of Title I schools"
+        sql: "SUM(CASE WHEN is_title_i THEN 1 ELSE 0 END)"
+        synonyms: ["Title I schools"]
+        
+      - name: charter_school_count
+        type: NUMBER
+        description: "Number of charter schools"
+        sql: "SUM(CASE WHEN is_charter THEN 1 ELSE 0 END)"
+        synonyms: ["charter schools"]
+
+    sample_questions:
+      - "How many schools are in each district?"
+      - "What is the average enrollment by school type?"
+      - "Which schools are over capacity?"
+      - "What is the student-teacher ratio by district?"
+      - "Show me graduation rates for high schools"
+      - "Which Title I schools have the highest attendance?"
+      - "Compare school performance across counties"
+      - "What is the enrollment trend over 5 years?"
+      - "Which schools have improved their rating?"
+      - "Show me charter school performance vs traditional"
+
+  sla:
+    freshness:
+      max_age_minutes: 1440  # 24 hours
+      measurement: "Dynamic Table TARGET_LAG"
+      
+    availability:
+      uptime_percent: 99.99
+      maintenance_window: "Sunday 02:00-04:00 EST"
+      
+    query_performance:
+      p95_seconds: 3
+      max_seconds: 15
+
+  governance:
+    classification: PUBLIC
+    ai_eligibility: "TRUE"
+    
+    access_controls:
+      masking_policies: []  # No PII at school aggregate level
+      row_access_policies: []  # Public data, no row filtering needed
+      
+    allowed_roles:
+      - DISTRICT_ADMIN
+      - PRINCIPAL
+      - DATA_ANALYST
+      - BI_VIEWER
+      - AI_AGENT
+      - PUBLIC
+
+  lineage:
+    source_contracts:
+      - contract_id: school_v1
+        type: data
+      - contract_id: staff_v1
+        type: data
+      - contract_id: student_v1
+        type: data
+        
+    transformations:
+      - curated_dim_school_v1
+
+  consumers:
+    - team: District Leadership
+      contact: leadership@district.edu
+      use_case: School performance monitoring
+      access_level: read_full
+      
+    - team: Public Affairs
+      contact: communications@district.edu
+      use_case: Public reporting and communications
+      access_level: read_full
+      
+    - team: State Reporting
+      contact: compliance@district.edu
+      use_case: DESE state reporting
+      access_level: read_full

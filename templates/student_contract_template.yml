@@ -1,0 +1,207 @@
+# ============================================================================
+# DATA CONTRACT TEMPLATE: Student Data
+# ============================================================================
+# 
+# Use this template for any student-related data source in the school district.
+# Fill in the placeholders (marked with {{ }}) with your specific values.
+#
+# FERPA Compliance Checklist:
+# [ ] All PII columns have FERPA_CATEGORY tags
+# [ ] SSN and sensitive identifiers marked as RESTRICTED
+# [ ] Educational records properly classified
+# [ ] Health data separated if present
+#
+# ============================================================================
+
+contract:
+  # ─────────────────────────────────────────────────────────────────────────
+  # IDENTITY & OWNERSHIP
+  # Replace with your contract details
+  # ─────────────────────────────────────────────────────────────────────────
+  id: {{ contract_id }}_v1                    # e.g., student_enrollment_v1
+  version: 1.0.0
+  status: draft                               # draft | review | approved | active
+  
+  producer:
+    system: {{ source_system }}               # e.g., STUDENT_INFORMATION_SYSTEM
+    team: {{ team_name }}                     # e.g., Student Data Services
+    owner: {{ owner_email }}                  # e.g., sis-team@district.edu
+    slack_channel: "#{{ slack_channel }}"    # e.g., #sis-data
+  
+  # ─────────────────────────────────────────────────────────────────────────
+  # SCHEMA DEFINITION
+  # ─────────────────────────────────────────────────────────────────────────
+  schema:
+    database: RAW_${ENV}
+    schema: RAW_SIS
+    table: {{ table_name }}_RAW               # e.g., STUDENT_ENROLLMENT_RAW
+    
+    columns:
+      # ── Primary Key ──
+      - name: {{ primary_key_name }}          # e.g., ENROLLMENT_ID
+        type: VARCHAR({{ key_length }})
+        description: "{{ primary_key_description }}"
+        constraints:
+          - not_null
+          - unique
+          - primary_key
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: EDUCATIONAL_RECORD
+      
+      # ── Student Reference ──
+      - name: STUDENT_ID
+        type: VARCHAR(20)
+        description: "Foreign key to student record"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: MODERATE
+          AI_ALLOWED: PSEUDONYMIZED_ONLY
+          FERPA_CATEGORY: EDUCATIONAL_RECORD
+      
+      # ── Add your columns below ──
+      # Template for PII columns:
+      #
+      # - name: {{ column_name }}
+      #   type: {{ data_type }}
+      #   description: "{{ description }}"
+      #   constraints:
+      #     - not_null  # if required
+      #   tags:
+      #     DATA_CLASSIFICATION: CONFIDENTIAL  # PUBLIC | INTERNAL | CONFIDENTIAL | RESTRICTED
+      #     PII_TYPE: MODERATE                 # NONE | LOW | MODERATE | HIGH
+      #     AI_ALLOWED: "FALSE"                # TRUE | FALSE | PSEUDONYMIZED_ONLY | AGGREGATED_ONLY
+      #     FERPA_CATEGORY: EDUCATIONAL_RECORD # DIRECTORY | EDUCATIONAL_RECORD | SENSITIVE | HEALTH
+      
+      # Template for non-PII columns:
+      #
+      # - name: {{ column_name }}
+      #   type: {{ data_type }}
+      #   description: "{{ description }}"
+      #   tags:
+      #     DATA_CLASSIFICATION: INTERNAL
+      #     PII_TYPE: NONE
+      #     AI_ALLOWED: "TRUE"
+      #     FERPA_CATEGORY: DIRECTORY
+
+      # ── System Columns (required for all tables) ──
+      - name: _LOADED_AT
+        type: TIMESTAMP_NTZ
+        description: "Snowflake ingestion timestamp"
+        constraints:
+          - not_null
+        system_managed: true
+        
+      - name: _SOURCE_SYSTEM
+        type: VARCHAR(50)
+        description: "Source system identifier"
+        system_managed: true
+        
+      - name: _ROW_HASH
+        type: VARCHAR(64)
+        description: "SHA256 hash of business columns for CDC"
+        system_managed: true
+        
+      - name: _IS_CURRENT
+        type: BOOLEAN
+        description: "SCD Type 2 current record flag"
+        system_managed: true
+        
+      - name: _VALID_FROM
+        type: TIMESTAMP_NTZ
+        description: "SCD Type 2 effective start"
+        system_managed: true
+        
+      - name: _VALID_TO
+        type: TIMESTAMP_NTZ
+        description: "SCD Type 2 effective end"
+        system_managed: true
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # SERVICE LEVEL AGREEMENTS
+  # ─────────────────────────────────────────────────────────────────────────
+  sla:
+    freshness:
+      max_age_minutes: {{ freshness_minutes }}  # e.g., 60
+      measurement: "MAX(_LOADED_AT) vs CURRENT_TIMESTAMP()"
+      
+    completeness:
+      threshold_percent: {{ completeness_pct }}  # e.g., 99.9
+      critical_columns:
+        - {{ primary_key_name }}
+        - STUDENT_ID
+        # Add other critical columns
+        
+    availability:
+      uptime_percent: 99.9
+      maintenance_window: "Saturday 02:00-04:00 EST"
+      
+    volume:
+      expected_daily_rows:
+        min: {{ min_daily_rows }}
+        max: {{ max_daily_rows }}
+      alert_on_variance_percent: 10
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # QUALITY RULES
+  # ─────────────────────────────────────────────────────────────────────────
+  quality_rules:
+    - id: qr_001
+      name: valid_primary_key
+      type: column_check
+      column: {{ primary_key_name }}
+      sql: "{{ primary_key_name }} IS NOT NULL"
+      severity: error
+      
+    - id: qr_002
+      name: valid_student_reference
+      type: cross_table_check
+      sql: "ALL STUDENT_ID VALUES EXIST IN STUDENT_RAW.STUDENT_ID"
+      severity: error
+    
+    # Add your quality rules:
+    # - id: qr_xxx
+    #   name: {{ rule_name }}
+    #   type: column_check | table_check | cross_table_check
+    #   sql: "{{ validation_sql }}"
+    #   severity: error | warning | info
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # GOVERNANCE & COMPLIANCE
+  # ─────────────────────────────────────────────────────────────────────────
+  governance:
+    classification: CONFIDENTIAL              # PUBLIC | INTERNAL | CONFIDENTIAL | RESTRICTED
+    residency_requirements:
+      - "Student data requires FERPA protection"
+      - "PII must not leave origin region without masking"
+    retention_days: 2555                      # 7 years after last activity
+    ai_eligibility: PSEUDONYMIZED_ONLY        # TRUE | FALSE | PSEUDONYMIZED_ONLY | AGGREGATED_ONLY
+    compliance_frameworks:
+      - FERPA
+      - COPPA                                 # If includes students under 13
+    
+  # ─────────────────────────────────────────────────────────────────────────
+  # LINEAGE & DEPENDENCIES
+  # ─────────────────────────────────────────────────────────────────────────
+  lineage:
+    source_systems:
+      - name: {{ source_system_name }}
+        connection: {{ connection_name }}
+        extraction: CDC_STREAM                # FULL_REFRESH | CDC_STREAM | INCREMENTAL
+        
+    downstream_dependencies:
+      - contract_id: {{ downstream_contract }}
+        type: transformation
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # CONSUMERS
+  # ─────────────────────────────────────────────────────────────────────────
+  consumers:
+    - team: {{ consumer_team }}
+      contact: {{ consumer_email }}
+      use_case: "{{ use_case_description }}"
+      access_level: read_masked               # read_full | read_masked | read_aggregated

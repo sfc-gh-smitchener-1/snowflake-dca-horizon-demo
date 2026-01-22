@@ -1,0 +1,322 @@
+# ============================================================================
+# DATA CONTRACT: Attendance Data
+# ============================================================================
+# Producer: Student Information System (SIS)
+# Source: Synthetic Massachusetts School District Data
+# Updated: 2026-01-22
+# ============================================================================
+
+contract:
+  id: attendance_v1
+  version: 1.0.0
+  status: active
+  
+  producer:
+    system: STUDENT_INFORMATION_SYSTEM
+    team: Student Data Services
+    owner: sis-team@district.edu
+    slack_channel: "#sis-data"
+  
+  schema:
+    database: RAW_${ENV}
+    schema: RAW_SIS
+    table: ATTENDANCE_RAW
+    
+    columns:
+      - name: ATTENDANCE_ID
+        type: VARCHAR(40)
+        description: "Unique attendance record identifier"
+        constraints:
+          - not_null
+          - unique
+          - primary_key
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: EDUCATIONAL_RECORD
+          
+      - name: STUDENT_ID
+        type: VARCHAR(20)
+        description: "Student identifier"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: MODERATE
+          AI_ALLOWED: PSEUDONYMIZED_ONLY
+          FERPA_CATEGORY: EDUCATIONAL_RECORD
+          
+      - name: SCHOOL_ID
+        type: VARCHAR(20)
+        description: "School identifier"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: DIRECTORY
+          
+      - name: ATTENDANCE_DATE
+        type: DATE
+        description: "Date of attendance record"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: EDUCATIONAL_RECORD
+          
+      - name: ATTENDANCE_TYPE
+        type: VARCHAR(20)
+        description: "Type of attendance record"
+        constraints:
+          - not_null
+        tests:
+          - type: accepted_values
+            values: ["Daily", "Period", "Homeroom"]
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: EDUCATIONAL_RECORD
+          
+      - name: PERIOD_NUMBER
+        type: NUMBER(2)
+        description: "Period number (for period attendance)"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: EDUCATIONAL_RECORD
+          
+      - name: SECTION_ID
+        type: VARCHAR(20)
+        description: "Class section (for period attendance)"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: EDUCATIONAL_RECORD
+          
+      - name: STATUS
+        type: VARCHAR(20)
+        description: "Attendance status"
+        constraints:
+          - not_null
+        tests:
+          - type: accepted_values
+            values: ["Present", "Absent", "Tardy", "Early Dismissal", "Excused", "Unexcused", "Field Trip", "ISS", "OSS"]
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: EDUCATIONAL_RECORD
+          
+      - name: EXCUSED
+        type: BOOLEAN
+        description: "Whether absence/tardy was excused"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: EDUCATIONAL_RECORD
+          
+      - name: ABSENCE_REASON
+        type: VARCHAR(50)
+        description: "Reason for absence"
+        constraints: []
+        tests:
+          - type: accepted_values
+            values: ["Illness", "Family Emergency", "Medical Appointment", "School Activity", "Religious Observance", "Suspension", "Other", "Unknown"]
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: LOW
+          AI_ALLOWED: AGGREGATED_ONLY
+          FERPA_CATEGORY: EDUCATIONAL_RECORD
+          
+      - name: ABSENCE_REASON_DETAIL
+        type: VARCHAR(200)
+        description: "Detailed absence notes"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: MODERATE
+          AI_ALLOWED: "FALSE"
+          FERPA_CATEGORY: SENSITIVE
+          
+      - name: MINUTES_ABSENT
+        type: NUMBER(4)
+        description: "Minutes absent (for partial day)"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: EDUCATIONAL_RECORD
+          
+      - name: ARRIVAL_TIME
+        type: TIME
+        description: "Actual arrival time (for tardy)"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: EDUCATIONAL_RECORD
+          
+      - name: DEPARTURE_TIME
+        type: TIME
+        description: "Departure time (for early dismissal)"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: EDUCATIONAL_RECORD
+          
+      - name: RECORDED_BY_STAFF_ID
+        type: VARCHAR(20)
+        description: "Staff who recorded attendance"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: EDUCATIONAL_RECORD
+          
+      - name: RECORDED_AT
+        type: TIMESTAMP_NTZ
+        description: "Timestamp when attendance was recorded"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: EDUCATIONAL_RECORD
+
+      # ── System Columns ──
+      - name: _LOADED_AT
+        type: TIMESTAMP_NTZ
+        description: "Snowflake ingestion timestamp"
+        constraints:
+          - not_null
+        system_managed: true
+        
+      - name: _SOURCE_SYSTEM
+        type: VARCHAR(50)
+        description: "Source system identifier"
+        system_managed: true
+        
+      - name: _ROW_HASH
+        type: VARCHAR(64)
+        description: "SHA256 hash of business columns"
+        system_managed: true
+        
+      - name: _IS_CURRENT
+        type: BOOLEAN
+        description: "SCD Type 2 current record flag"
+        system_managed: true
+        
+      - name: _VALID_FROM
+        type: TIMESTAMP_NTZ
+        description: "SCD Type 2 effective start"
+        system_managed: true
+        
+      - name: _VALID_TO
+        type: TIMESTAMP_NTZ
+        description: "SCD Type 2 effective end"
+        system_managed: true
+
+  sla:
+    freshness:
+      max_age_minutes: 60
+      measurement: "MAX(_LOADED_AT) vs CURRENT_TIMESTAMP()"
+      
+    completeness:
+      threshold_percent: 99.9
+      critical_columns:
+        - ATTENDANCE_ID
+        - STUDENT_ID
+        - ATTENDANCE_DATE
+        - STATUS
+        
+    availability:
+      uptime_percent: 99.9
+      maintenance_window: "Saturday 02:00-04:00 EST"
+      
+    volume:
+      expected_daily_rows:
+        min: 17000000
+        max: 19000000
+      alert_on_variance_percent: 10
+
+  quality_rules:
+    - id: qr_001
+      name: valid_attendance_id
+      type: column_check
+      column: ATTENDANCE_ID
+      sql: "ATTENDANCE_ID IS NOT NULL"
+      severity: error
+      
+    - id: qr_002
+      name: valid_student_reference
+      type: cross_table_check
+      sql: "ALL STUDENT_ID VALUES EXIST IN STUDENT_RAW.STUDENT_ID"
+      severity: error
+      
+    - id: qr_003
+      name: valid_date_not_future
+      type: column_check
+      column: ATTENDANCE_DATE
+      sql: "ATTENDANCE_DATE <= CURRENT_DATE()"
+      severity: error
+      
+    - id: qr_004
+      name: minutes_range
+      type: column_check
+      column: MINUTES_ABSENT
+      sql: "MINUTES_ABSENT IS NULL OR MINUTES_ABSENT BETWEEN 0 AND 480"
+      severity: warning
+
+  governance:
+    classification: CONFIDENTIAL
+    residency_requirements:
+      - "Attendance reasons may contain sensitive information"
+    retention_days: 2555
+    ai_eligibility: AGGREGATED_ONLY
+    compliance_frameworks:
+      - FERPA
+    
+  lineage:
+    source_systems:
+      - name: PowerSchool SIS
+        connection: POWERSCHOOL_API
+        extraction: CDC_STREAM
+        
+    downstream_dependencies:
+      - contract_id: curated_fact_attendance_v1
+        type: transformation
+      - contract_id: sem_student_analytics_v1
+        type: product
+
+  consumers:
+    - team: Teachers
+      contact: teachers@district.edu
+      use_case: Daily attendance taking
+      access_level: read_masked
+      
+    - team: Attendance Office
+      contact: attendance@district.edu
+      use_case: Attendance monitoring and intervention
+      access_level: read_full
+      
+    - team: Analytics
+      contact: analytics@district.edu
+      use_case: Chronic absenteeism analysis
+      access_level: read_masked

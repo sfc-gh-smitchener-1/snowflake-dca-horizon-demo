@@ -1,0 +1,506 @@
+# ============================================================================
+# DATA CONTRACT: Staff Data
+# ============================================================================
+# Producer: Human Resources Information System (HRIS)
+# Source: Synthetic Massachusetts School District Data
+# Updated: 2026-01-22
+# ============================================================================
+
+contract:
+  # ─────────────────────────────────────────────────────────────────────────
+  # IDENTITY & OWNERSHIP
+  # ─────────────────────────────────────────────────────────────────────────
+  id: staff_v1
+  version: 1.0.0
+  status: active
+  
+  producer:
+    system: HR_INFORMATION_SYSTEM
+    team: Human Resources
+    owner: hr-data@district.edu
+    slack_channel: "#hr-systems"
+  
+  # ─────────────────────────────────────────────────────────────────────────
+  # SCHEMA DEFINITION
+  # ─────────────────────────────────────────────────────────────────────────
+  schema:
+    database: RAW_${ENV}
+    schema: RAW_HR
+    table: STAFF_RAW
+    
+    columns:
+      # ── Primary Key ──
+      - name: STAFF_ID
+        type: VARCHAR(20)
+        description: "Unique staff identifier"
+        constraints:
+          - not_null
+          - unique
+          - primary_key
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: MODERATE
+          AI_ALLOWED: PSEUDONYMIZED_ONLY
+          
+      # ── Personal Information ──
+      - name: FIRST_NAME
+        type: VARCHAR(50)
+        description: "Staff legal first name"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: MODERATE
+          AI_ALLOWED: PSEUDONYMIZED_ONLY
+          
+      - name: MIDDLE_NAME
+        type: VARCHAR(50)
+        description: "Staff middle name"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: MODERATE
+          AI_ALLOWED: PSEUDONYMIZED_ONLY
+          
+      - name: LAST_NAME
+        type: VARCHAR(50)
+        description: "Staff legal last name"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: MODERATE
+          AI_ALLOWED: PSEUDONYMIZED_ONLY
+          
+      - name: PREFERRED_NAME
+        type: VARCHAR(50)
+        description: "Staff preferred name"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: LOW
+          AI_ALLOWED: "TRUE"
+          
+      - name: EMAIL
+        type: VARCHAR(100)
+        description: "District email address"
+        constraints:
+          - not_null
+        tests:
+          - type: format
+            pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: LOW
+          AI_ALLOWED: "TRUE"
+          
+      - name: PERSONAL_EMAIL
+        type: VARCHAR(100)
+        description: "Personal email address"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: MODERATE
+          AI_ALLOWED: "FALSE"
+
+      # ── Sensitive Identifiers ──
+      - name: SSN
+        type: VARCHAR(11)
+        description: "Social Security Number"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: RESTRICTED
+          PII_TYPE: HIGH
+          AI_ALLOWED: "FALSE"
+          RESIDENCY_REGION: US_ONLY
+          
+      - name: DATE_OF_BIRTH
+        type: DATE
+        description: "Staff date of birth"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: MODERATE
+          AI_ALLOWED: AGGREGATED_ONLY
+
+      # ── Contact Information ──
+      - name: PHONE_WORK
+        type: VARCHAR(20)
+        description: "Work phone number"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: LOW
+          AI_ALLOWED: "TRUE"
+          
+      - name: PHONE_MOBILE
+        type: VARCHAR(20)
+        description: "Personal mobile phone"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: MODERATE
+          AI_ALLOWED: "FALSE"
+          
+      - name: HOME_ADDRESS
+        type: VARCHAR(200)
+        description: "Home mailing address"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: MODERATE
+          AI_ALLOWED: "FALSE"
+          
+      - name: CITY
+        type: VARCHAR(50)
+        description: "City of residence"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: LOW
+          AI_ALLOWED: "TRUE"
+          
+      - name: STATE
+        type: VARCHAR(2)
+        description: "State code"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: PUBLIC
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          
+      - name: ZIP_CODE
+        type: VARCHAR(10)
+        description: "ZIP code"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: LOW
+          AI_ALLOWED: "TRUE"
+
+      # ── Employment Information ──
+      - name: EMPLOYEE_TYPE
+        type: VARCHAR(20)
+        description: "Employment classification"
+        constraints:
+          - not_null
+        tests:
+          - type: accepted_values
+            values: ["Full-Time", "Part-Time", "Contractor", "Substitute", "Intern"]
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          
+      - name: POSITION_TITLE
+        type: VARCHAR(100)
+        description: "Official job title"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          
+      - name: ROLE_CATEGORY
+        type: VARCHAR(50)
+        description: "Role classification"
+        constraints:
+          - not_null
+        tests:
+          - type: accepted_values
+            values: ["Teacher", "Administrator", "Counselor", "Support Staff", "Specialist", "Paraprofessional"]
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          
+      - name: DEPARTMENT
+        type: VARCHAR(50)
+        description: "Department or subject area"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          
+      - name: PRIMARY_SCHOOL_ID
+        type: VARCHAR(20)
+        description: "Primary school assignment"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          
+      - name: DISTRICT_ID
+        type: VARCHAR(20)
+        description: "District assignment"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+
+      # ── Employment Dates ──
+      - name: HIRE_DATE
+        type: DATE
+        description: "Original hire date"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          
+      - name: START_DATE_CURRENT_POSITION
+        type: DATE
+        description: "Start date in current position"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          
+      - name: TERMINATION_DATE
+        type: DATE
+        description: "Employment end date (if applicable)"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: LOW
+          AI_ALLOWED: "TRUE"
+          
+      - name: EMPLOYMENT_STATUS
+        type: VARCHAR(20)
+        description: "Current employment status"
+        constraints:
+          - not_null
+        tests:
+          - type: accepted_values
+            values: ["Active", "On Leave", "Terminated", "Retired", "Resigned"]
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+
+      # ── Credentials & Education ──
+      - name: HIGHEST_DEGREE
+        type: VARCHAR(50)
+        description: "Highest degree earned"
+        constraints: []
+        tests:
+          - type: accepted_values
+            values: ["High School", "Associate", "Bachelor", "Master", "Doctorate", "Other"]
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          
+      - name: TEACHING_LICENSE
+        type: VARCHAR(100)
+        description: "Teaching license type and endorsements"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          
+      - name: LICENSE_EXPIRATION
+        type: DATE
+        description: "Teaching license expiration date"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          
+      - name: YEARS_EXPERIENCE
+        type: NUMBER(3)
+        description: "Total years of experience in education"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          
+      - name: HIGHLY_QUALIFIED
+        type: BOOLEAN
+        description: "Meets highly qualified teacher standards"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+
+      # ── Compensation (Sensitive) ──
+      - name: SALARY
+        type: NUMBER(12,2)
+        description: "Annual salary"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: RESTRICTED
+          PII_TYPE: HIGH
+          AI_ALLOWED: AGGREGATED_ONLY
+          
+      - name: PAY_GRADE
+        type: VARCHAR(10)
+        description: "Pay grade classification"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: MODERATE
+          AI_ALLOWED: "TRUE"
+          
+      - name: UNION_MEMBERSHIP
+        type: VARCHAR(50)
+        description: "Union affiliation"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: MODERATE
+          AI_ALLOWED: AGGREGATED_ONLY
+
+      # ── System Columns ──
+      - name: _LOADED_AT
+        type: TIMESTAMP_NTZ
+        description: "Snowflake ingestion timestamp"
+        constraints:
+          - not_null
+        system_managed: true
+        
+      - name: _SOURCE_SYSTEM
+        type: VARCHAR(50)
+        description: "Source system identifier"
+        system_managed: true
+        
+      - name: _ROW_HASH
+        type: VARCHAR(64)
+        description: "SHA256 hash of business columns"
+        system_managed: true
+        
+      - name: _IS_CURRENT
+        type: BOOLEAN
+        description: "SCD Type 2 current record flag"
+        system_managed: true
+        
+      - name: _VALID_FROM
+        type: TIMESTAMP_NTZ
+        description: "SCD Type 2 effective start"
+        system_managed: true
+        
+      - name: _VALID_TO
+        type: TIMESTAMP_NTZ
+        description: "SCD Type 2 effective end"
+        system_managed: true
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # SERVICE LEVEL AGREEMENTS
+  # ─────────────────────────────────────────────────────────────────────────
+  sla:
+    freshness:
+      max_age_minutes: 120
+      measurement: "MAX(_LOADED_AT) vs CURRENT_TIMESTAMP()"
+      
+    completeness:
+      threshold_percent: 99.5
+      critical_columns:
+        - STAFF_ID
+        - FIRST_NAME
+        - LAST_NAME
+        - POSITION_TITLE
+        - PRIMARY_SCHOOL_ID
+        
+    availability:
+      uptime_percent: 99.9
+      maintenance_window: "Saturday 02:00-04:00 EST"
+      
+    volume:
+      expected_daily_rows:
+        min: 11000
+        max: 13000
+      alert_on_variance_percent: 10
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # QUALITY RULES
+  # ─────────────────────────────────────────────────────────────────────────
+  quality_rules:
+    - id: qr_001
+      name: valid_staff_id
+      type: column_check
+      column: STAFF_ID
+      sql: "STAFF_ID IS NOT NULL AND LENGTH(STAFF_ID) > 0"
+      severity: error
+      
+    - id: qr_002
+      name: valid_email_format
+      type: column_check
+      column: EMAIL
+      sql: "EMAIL REGEXP '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$'"
+      severity: warning
+      
+    - id: qr_003
+      name: valid_hire_date
+      type: column_check
+      column: HIRE_DATE
+      sql: "HIRE_DATE <= CURRENT_DATE() AND HIRE_DATE >= '1970-01-01'"
+      severity: error
+      
+    - id: qr_004
+      name: valid_school_reference
+      type: cross_table_check
+      sql: "ALL PRIMARY_SCHOOL_ID VALUES EXIST IN SCHOOL_RAW.SCHOOL_ID"
+      severity: error
+      
+    - id: qr_005
+      name: active_staff_no_termination
+      type: table_check
+      sql: "ACTIVE STAFF HAVE NULL TERMINATION_DATE"
+      severity: error
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # GOVERNANCE & COMPLIANCE
+  # ─────────────────────────────────────────────────────────────────────────
+  governance:
+    classification: CONFIDENTIAL
+    residency_requirements:
+      - "SSN and salary data must not leave US region"
+      - "Personal contact info requires masking for most roles"
+    retention_days: 2555  # 7 years after employment ends
+    ai_eligibility: PSEUDONYMIZED_ONLY
+    
+  # ─────────────────────────────────────────────────────────────────────────
+  # LINEAGE & DEPENDENCIES
+  # ─────────────────────────────────────────────────────────────────────────
+  lineage:
+    source_systems:
+      - name: Workday HCM
+        connection: WORKDAY_API
+        extraction: CDC_STREAM
+        
+    downstream_dependencies:
+      - contract_id: curated_dim_staff_v1
+        type: transformation
+      - contract_id: sem_staff_analytics_v1
+        type: product
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # CONSUMERS
+  # ─────────────────────────────────────────────────────────────────────────
+  consumers:
+    - team: Human Resources
+      contact: hr@district.edu
+      use_case: Staff management and reporting
+      access_level: read_full
+      
+    - team: District Administration
+      contact: admin@district.edu
+      use_case: Staffing analytics and planning
+      access_level: read_masked
+      
+    - team: School Leadership
+      contact: principals@district.edu
+      use_case: School staff directory
+      access_level: read_masked

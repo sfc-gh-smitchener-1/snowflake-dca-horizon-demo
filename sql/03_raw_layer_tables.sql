@@ -1,0 +1,316 @@
+-- ============================================================================
+-- MASSACHUSETTS SCHOOL DISTRICT - RAW LAYER TABLES
+-- ============================================================================
+-- 
+-- Creates the RAW layer tables with proper structure for:
+-- - SCD Type 2 history tracking
+-- - Governance tag application
+-- - Change data capture support
+--
+-- RUN AS: DATA_ADMIN
+-- ============================================================================
+
+USE ROLE DATA_ADMIN;
+USE WAREHOUSE TRANSFORM_WH;
+USE DATABASE RAW_DEV;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- PART 1: DISTRICT TABLE
+-- ═══════════════════════════════════════════════════════════════════════════
+
+USE SCHEMA RAW_SIS;
+
+CREATE TABLE IF NOT EXISTS DISTRICT_RAW (
+    -- Business Keys
+    DISTRICT_ID VARCHAR(20) NOT NULL,
+    DISTRICT_NAME VARCHAR(100) NOT NULL,
+    
+    -- Location
+    COUNTY VARCHAR(50),
+    CITY VARCHAR(50),
+    STATE VARCHAR(2) DEFAULT 'MA',
+    
+    -- Leadership
+    SUPERINTENDENT_NAME VARCHAR(100),
+    
+    -- Contact
+    PHONE_MAIN VARCHAR(20),
+    WEBSITE VARCHAR(200),
+    
+    -- Academic
+    CURRENT_SCHOOL_YEAR VARCHAR(10),
+    
+    -- System columns (SCD Type 2)
+    _LOADED_AT TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
+    _SOURCE_SYSTEM VARCHAR(50) DEFAULT 'DISTRICT_MANAGEMENT_SYSTEM',
+    _ROW_HASH VARCHAR(64),
+    _IS_CURRENT BOOLEAN DEFAULT TRUE,
+    _VALID_FROM TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
+    _VALID_TO TIMESTAMP_NTZ DEFAULT '9999-12-31'::TIMESTAMP_NTZ
+);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- PART 2: SCHOOL TABLE
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS SCHOOL_RAW (
+    -- Business Keys
+    SCHOOL_ID VARCHAR(20) NOT NULL,
+    SCHOOL_NAME VARCHAR(100) NOT NULL,
+    SCHOOL_NAME_SHORT VARCHAR(50),
+    
+    -- Classification
+    SCHOOL_TYPE VARCHAR(30),
+    GRADE_LEVELS_SERVED VARCHAR(20),
+    IS_TITLE_I BOOLEAN DEFAULT FALSE,
+    IS_MAGNET BOOLEAN DEFAULT FALSE,
+    IS_CHARTER BOOLEAN DEFAULT FALSE,
+    
+    -- District Reference
+    DISTRICT_ID VARCHAR(20),
+    DISTRICT_NAME VARCHAR(100),
+    
+    -- Location
+    ADDRESS VARCHAR(200),
+    CITY VARCHAR(50),
+    STATE VARCHAR(2) DEFAULT 'MA',
+    ZIP_CODE VARCHAR(10),
+    COUNTY VARCHAR(50),
+    LATITUDE NUMBER(10,7),
+    LONGITUDE NUMBER(10,7),
+    
+    -- Contact
+    PHONE_MAIN VARCHAR(20),
+    PHONE_FAX VARCHAR(20),
+    WEBSITE VARCHAR(200),
+    EMAIL_MAIN VARCHAR(100),
+    
+    -- Leadership
+    PRINCIPAL_STAFF_ID VARCHAR(20),
+    PRINCIPAL_NAME VARCHAR(100),
+    
+    -- Capacity
+    BUILDING_CAPACITY NUMBER(6),
+    CURRENT_ENROLLMENT NUMBER(6),
+    STAFF_COUNT NUMBER(5),
+    TEACHER_COUNT NUMBER(5),
+    
+    -- Academic Calendar
+    SCHOOL_YEAR VARCHAR(10),
+    FIRST_DAY_OF_SCHOOL DATE,
+    LAST_DAY_OF_SCHOOL DATE,
+    
+    -- Performance
+    ACCOUNTABILITY_RATING VARCHAR(20),
+    GRADUATION_RATE NUMBER(5,2),
+    ATTENDANCE_RATE NUMBER(5,2),
+    
+    -- System columns
+    _LOADED_AT TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
+    _SOURCE_SYSTEM VARCHAR(50) DEFAULT 'DISTRICT_MANAGEMENT_SYSTEM',
+    _ROW_HASH VARCHAR(64),
+    _IS_CURRENT BOOLEAN DEFAULT TRUE,
+    _VALID_FROM TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
+    _VALID_TO TIMESTAMP_NTZ DEFAULT '9999-12-31'::TIMESTAMP_NTZ
+);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- PART 3: STUDENT TABLE
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS STUDENT_RAW (
+    -- Business Keys
+    STUDENT_ID VARCHAR(20) NOT NULL,
+    
+    -- Personal Information
+    FIRST_NAME VARCHAR(50) NOT NULL,
+    MIDDLE_NAME VARCHAR(50),
+    LAST_NAME VARCHAR(50) NOT NULL,
+    PREFERRED_NAME VARCHAR(50),
+    SUFFIX VARCHAR(10),
+    
+    -- Sensitive Identifiers
+    SSN VARCHAR(11),
+    STATE_ID VARCHAR(20),
+    
+    -- Demographics
+    DATE_OF_BIRTH DATE NOT NULL,
+    GENDER VARCHAR(20),
+    ETHNICITY VARCHAR(50),
+    RACE VARCHAR(100),
+    PRIMARY_LANGUAGE VARCHAR(50),
+    ELL_STATUS BOOLEAN,
+    
+    -- Address
+    HOME_ADDRESS_LINE1 VARCHAR(100),
+    HOME_ADDRESS_LINE2 VARCHAR(100),
+    CITY VARCHAR(50),
+    STATE VARCHAR(2) DEFAULT 'MA',
+    ZIP_CODE VARCHAR(10),
+    COUNTY VARCHAR(50),
+    
+    -- School Assignment
+    CURRENT_SCHOOL_ID VARCHAR(20),
+    CURRENT_DISTRICT_ID VARCHAR(20),
+    GRADE_LEVEL VARCHAR(5),
+    HOMEROOM VARCHAR(20),
+    
+    -- Enrollment
+    ENROLLMENT_STATUS VARCHAR(20),
+    ENROLLMENT_DATE DATE,
+    EXPECTED_GRADUATION_YEAR NUMBER(4),
+    
+    -- Special Programs
+    SPECIAL_EDUCATION BOOLEAN,
+    SECTION_504 BOOLEAN,
+    GIFTED_TALENTED BOOLEAN,
+    FREE_REDUCED_LUNCH VARCHAR(10),
+    HOMELESS_STATUS BOOLEAN,
+    
+    -- System columns
+    _LOADED_AT TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
+    _SOURCE_SYSTEM VARCHAR(50) DEFAULT 'STUDENT_INFORMATION_SYSTEM',
+    _ROW_HASH VARCHAR(64),
+    _IS_CURRENT BOOLEAN DEFAULT TRUE,
+    _VALID_FROM TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
+    _VALID_TO TIMESTAMP_NTZ DEFAULT '9999-12-31'::TIMESTAMP_NTZ
+);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- PART 4: GUARDIAN TABLE
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS GUARDIAN_RAW (
+    -- Business Keys
+    GUARDIAN_ID VARCHAR(20) NOT NULL,
+    
+    -- Personal Information
+    FIRST_NAME VARCHAR(50) NOT NULL,
+    LAST_NAME VARCHAR(50) NOT NULL,
+    RELATIONSHIP_TYPE VARCHAR(30),
+    
+    -- Contact
+    EMAIL_PRIMARY VARCHAR(100),
+    EMAIL_SECONDARY VARCHAR(100),
+    PHONE_HOME VARCHAR(20),
+    PHONE_MOBILE VARCHAR(20),
+    PHONE_WORK VARCHAR(20),
+    
+    -- Address
+    ADDRESS_LINE1 VARCHAR(100),
+    ADDRESS_LINE2 VARCHAR(100),
+    CITY VARCHAR(50),
+    STATE VARCHAR(2) DEFAULT 'MA',
+    ZIP_CODE VARCHAR(10),
+    
+    -- Additional
+    EMPLOYER VARCHAR(100),
+    PREFERRED_LANGUAGE VARCHAR(30),
+    PORTAL_ACCOUNT_ACTIVE BOOLEAN,
+    PORTAL_USERNAME VARCHAR(50),
+    RECEIVES_DISTRICT_COMMUNICATIONS BOOLEAN,
+    
+    -- System columns
+    _LOADED_AT TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
+    _SOURCE_SYSTEM VARCHAR(50) DEFAULT 'STUDENT_INFORMATION_SYSTEM',
+    _ROW_HASH VARCHAR(64),
+    _IS_CURRENT BOOLEAN DEFAULT TRUE,
+    _VALID_FROM TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
+    _VALID_TO TIMESTAMP_NTZ DEFAULT '9999-12-31'::TIMESTAMP_NTZ
+);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- PART 5: STUDENT-GUARDIAN RELATIONSHIP TABLE
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS STUDENT_GUARDIAN_RAW (
+    RELATIONSHIP_ID VARCHAR(50) NOT NULL,
+    STUDENT_ID VARCHAR(20) NOT NULL,
+    GUARDIAN_ID VARCHAR(20) NOT NULL,
+    RELATIONSHIP_TYPE VARCHAR(30),
+    IS_PRIMARY_CONTACT BOOLEAN,
+    AUTHORIZED_PICKUP BOOLEAN,
+    EMERGENCY_CONTACT BOOLEAN,
+    
+    -- System columns
+    _LOADED_AT TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
+    _SOURCE_SYSTEM VARCHAR(50) DEFAULT 'STUDENT_INFORMATION_SYSTEM',
+    _IS_CURRENT BOOLEAN DEFAULT TRUE
+);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- PART 6: STAFF TABLE (HR Schema)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+USE SCHEMA RAW_HR;
+
+CREATE TABLE IF NOT EXISTS STAFF_RAW (
+    -- Business Keys
+    STAFF_ID VARCHAR(20) NOT NULL,
+    
+    -- Personal Information
+    FIRST_NAME VARCHAR(50) NOT NULL,
+    MIDDLE_NAME VARCHAR(50),
+    LAST_NAME VARCHAR(50) NOT NULL,
+    PREFERRED_NAME VARCHAR(50),
+    
+    -- Contact
+    EMAIL VARCHAR(100),
+    PERSONAL_EMAIL VARCHAR(100),
+    PHONE_WORK VARCHAR(20),
+    PHONE_MOBILE VARCHAR(20),
+    
+    -- Sensitive
+    SSN VARCHAR(11),
+    DATE_OF_BIRTH DATE,
+    
+    -- Address
+    HOME_ADDRESS VARCHAR(200),
+    CITY VARCHAR(50),
+    STATE VARCHAR(2) DEFAULT 'MA',
+    ZIP_CODE VARCHAR(10),
+    
+    -- Employment
+    EMPLOYEE_TYPE VARCHAR(20),
+    POSITION_TITLE VARCHAR(100),
+    ROLE_CATEGORY VARCHAR(50),
+    DEPARTMENT VARCHAR(50),
+    PRIMARY_SCHOOL_ID VARCHAR(20),
+    DISTRICT_ID VARCHAR(20),
+    
+    -- Dates
+    HIRE_DATE DATE,
+    START_DATE_CURRENT_POSITION DATE,
+    TERMINATION_DATE DATE,
+    EMPLOYMENT_STATUS VARCHAR(20),
+    
+    -- Credentials
+    HIGHEST_DEGREE VARCHAR(50),
+    TEACHING_LICENSE VARCHAR(100),
+    LICENSE_EXPIRATION DATE,
+    YEARS_EXPERIENCE NUMBER(3),
+    HIGHLY_QUALIFIED BOOLEAN,
+    
+    -- Compensation
+    SALARY NUMBER(12,2),
+    PAY_GRADE VARCHAR(10),
+    UNION_MEMBERSHIP VARCHAR(50),
+    
+    -- System columns
+    _LOADED_AT TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
+    _SOURCE_SYSTEM VARCHAR(50) DEFAULT 'HR_INFORMATION_SYSTEM',
+    _ROW_HASH VARCHAR(64),
+    _IS_CURRENT BOOLEAN DEFAULT TRUE,
+    _VALID_FROM TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
+    _VALID_TO TIMESTAMP_NTZ DEFAULT '9999-12-31'::TIMESTAMP_NTZ
+);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- VERIFICATION
+-- ═══════════════════════════════════════════════════════════════════════════
+
+SELECT 'RAW Layer Tables Created' AS STATUS;
+
+-- List tables
+SHOW TABLES IN SCHEMA RAW_DEV.RAW_SIS;
+SHOW TABLES IN SCHEMA RAW_DEV.RAW_HR;

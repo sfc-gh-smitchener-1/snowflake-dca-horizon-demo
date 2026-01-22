@@ -1,0 +1,299 @@
+# ============================================================================
+# PRODUCT CONTRACT: Student Analytics Semantic Layer
+# ============================================================================
+# Consumer: District Leadership, Principals, Counselors
+# Output: Semantic view for student performance and enrollment analytics
+# Updated: 2026-01-22
+# ============================================================================
+
+contract:
+  id: sem_student_analytics_v1
+  version: 1.0.0
+  status: active
+  type: product
+  
+  producer:
+    system: SEMANTIC_LAYER
+    team: Analytics Platform
+    owner: analytics@district.edu
+    slack_channel: "#analytics-platform"
+  
+  # ─────────────────────────────────────────────────────────────────────────
+  # OUTPUT SPECIFICATION
+  # ─────────────────────────────────────────────────────────────────────────
+  output:
+    database: SEM_${ENV}
+    schema: SEM_STUDENT
+    semantic_view: STUDENT_ANALYTICS
+    
+    description: |
+      Comprehensive student analytics view providing enrollment, performance, 
+      attendance, and risk indicators. Data is masked according to role:
+      - DISTRICT_ADMIN: All students, some PII masked
+      - PRINCIPAL: Own school students
+      - TEACHER: Own classroom students
+      - COUNSELOR: Assigned students with sensitive data
+      - AI_AGENT: Pseudonymized aggregates only
+    
+    # ── Dimensions ──
+    dimensions:
+      - name: student_id
+        type: VARCHAR(20)
+        description: "Unique student identifier (masked for non-privileged roles)"
+        synonyms: ["student number", "student key", "id"]
+        
+      - name: student_name
+        type: VARCHAR(100)
+        description: "Full student name (First Last)"
+        synonyms: ["name", "full name"]
+        
+      - name: grade_level
+        type: VARCHAR(5)
+        description: "Current grade level (K, 01-12)"
+        synonyms: ["grade", "current grade"]
+        
+      - name: school_name
+        type: VARCHAR(100)
+        description: "Current school name"
+        synonyms: ["school", "building"]
+        
+      - name: school_type
+        type: VARCHAR(30)
+        description: "School type (Elementary, Middle, High)"
+        synonyms: ["level"]
+        
+      - name: district_name
+        type: VARCHAR(100)
+        description: "District name"
+        synonyms: ["district"]
+        
+      - name: county
+        type: VARCHAR(50)
+        description: "County name"
+        synonyms: ["county name"]
+        
+      - name: enrollment_status
+        type: VARCHAR(20)
+        description: "Current enrollment status"
+        synonyms: ["status", "active status"]
+        
+      - name: gender
+        type: VARCHAR(20)
+        description: "Student gender"
+        synonyms: ["sex"]
+        
+      - name: ethnicity
+        type: VARCHAR(50)
+        description: "Student ethnicity"
+        synonyms: ["race/ethnicity"]
+        
+      - name: ell_status
+        type: BOOLEAN
+        description: "English Language Learner status"
+        synonyms: ["ELL", "english learner", "LEP"]
+        
+      - name: special_education
+        type: BOOLEAN
+        description: "Has IEP (aggregated only for most roles)"
+        synonyms: ["IEP", "SPED"]
+        
+      - name: free_reduced_lunch
+        type: VARCHAR(10)
+        description: "Lunch eligibility status"
+        synonyms: ["FRL", "free lunch", "economically disadvantaged"]
+        
+      - name: at_risk_flag
+        type: BOOLEAN
+        description: "Student at-risk indicator"
+        synonyms: ["at risk", "risk flag"]
+        
+      - name: school_year
+        type: VARCHAR(10)
+        description: "Academic year"
+        synonyms: ["year", "academic year"]
+        
+      - name: cohort_year
+        type: NUMBER(4)
+        description: "Expected graduation year"
+        synonyms: ["graduation year", "class of"]
+
+    # ── Measures/Metrics ──
+    metrics:
+      - name: student_count
+        type: NUMBER
+        description: "Count of students"
+        sql: "COUNT(DISTINCT student_id)"
+        synonyms: ["number of students", "enrollment", "headcount"]
+        
+      - name: average_gpa
+        type: NUMBER(3,2)
+        description: "Average GPA"
+        sql: "AVG(current_gpa)"
+        synonyms: ["mean GPA", "avg GPA"]
+        
+      - name: attendance_rate
+        type: NUMBER(5,2)
+        description: "Average attendance rate percentage"
+        sql: "AVG(attendance_rate) * 100"
+        synonyms: ["attendance", "ADA", "average daily attendance"]
+        
+      - name: chronic_absence_rate
+        type: NUMBER(5,2)
+        description: "Percentage of students chronically absent (>10% days)"
+        sql: "AVG(CASE WHEN is_chronically_absent THEN 1.0 ELSE 0.0 END) * 100"
+        synonyms: ["chronic absenteeism"]
+        
+      - name: at_risk_count
+        type: NUMBER
+        description: "Number of at-risk students"
+        sql: "SUM(CASE WHEN at_risk_flag THEN 1 ELSE 0 END)"
+        synonyms: ["at risk students"]
+        
+      - name: at_risk_rate
+        type: NUMBER(5,2)
+        description: "Percentage of students at risk"
+        sql: "AVG(CASE WHEN at_risk_flag THEN 1.0 ELSE 0.0 END) * 100"
+        synonyms: ["at risk percentage"]
+        
+      - name: ell_count
+        type: NUMBER
+        description: "Number of ELL students"
+        sql: "SUM(CASE WHEN ell_status THEN 1 ELSE 0 END)"
+        synonyms: ["english learners"]
+        
+      - name: sped_count
+        type: NUMBER
+        description: "Number of special education students"
+        sql: "SUM(CASE WHEN special_education THEN 1 ELSE 0 END)"
+        synonyms: ["IEP students", "special education students"]
+        
+      - name: frl_rate
+        type: NUMBER(5,2)
+        description: "Percentage of students on free/reduced lunch"
+        sql: "AVG(CASE WHEN free_reduced_lunch IN ('Free', 'Reduced') THEN 1.0 ELSE 0.0 END) * 100"
+        synonyms: ["economically disadvantaged rate"]
+        
+      - name: credits_earned
+        type: NUMBER(6,2)
+        description: "Total credits earned"
+        sql: "SUM(credits_earned)"
+        synonyms: ["credits completed"]
+        
+      - name: credits_attempted
+        type: NUMBER(6,2)
+        description: "Total credits attempted"
+        sql: "SUM(credits_attempted)"
+        synonyms: ["credits taken"]
+        
+      - name: credit_completion_rate
+        type: NUMBER(5,2)
+        description: "Percentage of attempted credits earned"
+        sql: "SUM(credits_earned) / NULLIF(SUM(credits_attempted), 0) * 100"
+        synonyms: ["pass rate"]
+
+    # ── Sample Questions ──
+    sample_questions:
+      - "How many students are enrolled by grade level?"
+      - "What is the average GPA by school?"
+      - "Which schools have the highest chronic absenteeism?"
+      - "Show me at-risk students by district"
+      - "What is the attendance rate trend over the past year?"
+      - "How many ELL students are in each school?"
+      - "What percentage of students are on free or reduced lunch?"
+      - "Which grade levels have the lowest attendance?"
+      - "Compare student performance across districts"
+      - "Show me students at risk of not graduating"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # SERVICE LEVEL AGREEMENTS
+  # ─────────────────────────────────────────────────────────────────────────
+  sla:
+    freshness:
+      max_age_minutes: 60
+      measurement: "Dynamic Table TARGET_LAG"
+      
+    availability:
+      uptime_percent: 99.9
+      maintenance_window: "Saturday 02:00-04:00 EST"
+      
+    query_performance:
+      p95_seconds: 5
+      max_seconds: 30
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # GOVERNANCE & ACCESS
+  # ─────────────────────────────────────────────────────────────────────────
+  governance:
+    classification: CONFIDENTIAL
+    ai_eligibility: AGGREGATED_ONLY
+    
+    access_controls:
+      masking_policies:
+        - column: STUDENT_ID
+          policy: MASK_STUDENT_ID
+          description: "Pseudonymized for AI, masked for unauthorized roles"
+        - column: STUDENT_NAME
+          policy: MASK_STUDENT_NAME
+          description: "Hidden for AI, visible for educators"
+        - column: SPECIAL_EDUCATION
+          policy: MASK_SPED_STATUS
+          description: "Visible only to counselors and authorized staff"
+          
+      row_access_policies:
+        - policy: EDUCATION_HIERARCHY_ACCESS
+          description: "Filters students by role: district, school, or classroom"
+          
+    allowed_roles:
+      - DISTRICT_ADMIN
+      - PRINCIPAL
+      - TEACHER
+      - COUNSELOR
+      - AI_AGENT
+      
+    prohibited_uses:
+      - "Individual student identification for marketing"
+      - "Sharing with unauthorized third parties"
+      - "Re-identification of pseudonymized data"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # LINEAGE
+  # ─────────────────────────────────────────────────────────────────────────
+  lineage:
+    source_contracts:
+      - contract_id: student_v1
+        type: data
+      - contract_id: enrollment_v1
+        type: data
+      - contract_id: attendance_v1
+        type: data
+      - contract_id: school_v1
+        type: data
+        
+    transformations:
+      - curated_dim_student_v1
+      - curated_fact_enrollment_v1
+      - curated_fact_attendance_v1
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # CONSUMERS
+  # ─────────────────────────────────────────────────────────────────────────
+  consumers:
+    - team: District Leadership
+      contact: leadership@district.edu
+      use_case: District-wide student analytics and reporting
+      access_level: read_masked
+      
+    - team: School Principals
+      contact: principals@district.edu
+      use_case: School-level performance monitoring
+      access_level: read_masked
+      
+    - team: Guidance Counselors
+      contact: counselors@district.edu
+      use_case: Student intervention and support
+      access_level: read_full
+      
+    - team: Cortex Analyst
+      contact: analytics@district.edu
+      use_case: Natural language analytics queries
+      access_level: read_aggregated

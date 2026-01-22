@@ -1,0 +1,304 @@
+# ============================================================================
+# DATA CONTRACT: Enrollment Data
+# ============================================================================
+# Producer: Student Information System (SIS)
+# Source: Synthetic Massachusetts School District Data
+# Updated: 2026-01-22
+# ============================================================================
+
+contract:
+  id: enrollment_v1
+  version: 1.0.0
+  status: active
+  
+  producer:
+    system: STUDENT_INFORMATION_SYSTEM
+    team: Student Data Services
+    owner: sis-team@district.edu
+    slack_channel: "#sis-data"
+  
+  schema:
+    database: RAW_${ENV}
+    schema: RAW_SIS
+    table: ENROLLMENT_RAW
+    
+    columns:
+      - name: ENROLLMENT_ID
+        type: VARCHAR(30)
+        description: "Unique enrollment record identifier"
+        constraints:
+          - not_null
+          - unique
+          - primary_key
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: EDUCATIONAL_RECORD
+          
+      - name: STUDENT_ID
+        type: VARCHAR(20)
+        description: "Student identifier (FK to STUDENT)"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: MODERATE
+          AI_ALLOWED: PSEUDONYMIZED_ONLY
+          FERPA_CATEGORY: EDUCATIONAL_RECORD
+          
+      - name: SECTION_ID
+        type: VARCHAR(20)
+        description: "Class section identifier (FK to CLASS_SECTION)"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: EDUCATIONAL_RECORD
+          
+      - name: COURSE_ID
+        type: VARCHAR(20)
+        description: "Course identifier (FK to COURSE)"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: DIRECTORY
+          
+      - name: SCHOOL_ID
+        type: VARCHAR(20)
+        description: "School where enrollment occurred"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: DIRECTORY
+          
+      - name: SCHOOL_YEAR
+        type: VARCHAR(10)
+        description: "Academic year (e.g., 2025-2026)"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: PUBLIC
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: DIRECTORY
+          
+      - name: TERM
+        type: VARCHAR(20)
+        description: "Term/semester (Fall, Spring, Full Year)"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: PUBLIC
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: DIRECTORY
+          
+      - name: ENROLLMENT_DATE
+        type: DATE
+        description: "Date student enrolled in section"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: EDUCATIONAL_RECORD
+          
+      - name: DROP_DATE
+        type: DATE
+        description: "Date student dropped section (if applicable)"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: EDUCATIONAL_RECORD
+          
+      - name: ENROLLMENT_STATUS
+        type: VARCHAR(20)
+        description: "Current enrollment status"
+        constraints:
+          - not_null
+        tests:
+          - type: accepted_values
+            values: ["Active", "Dropped", "Completed", "Withdrawn", "Transferred"]
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: EDUCATIONAL_RECORD
+          
+      - name: GRADE_LEVEL_AT_ENROLLMENT
+        type: VARCHAR(5)
+        description: "Student's grade level when enrolled"
+        constraints:
+          - not_null
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: DIRECTORY
+          
+      - name: CREDITS_ATTEMPTED
+        type: NUMBER(4,2)
+        description: "Credits attempted for this enrollment"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: INTERNAL
+          PII_TYPE: NONE
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: EDUCATIONAL_RECORD
+          
+      - name: CREDITS_EARNED
+        type: NUMBER(4,2)
+        description: "Credits earned (populated after completion)"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: LOW
+          AI_ALLOWED: "TRUE"
+          FERPA_CATEGORY: EDUCATIONAL_RECORD
+          
+      - name: FINAL_GRADE
+        type: VARCHAR(5)
+        description: "Final letter grade"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: LOW
+          AI_ALLOWED: AGGREGATED_ONLY
+          FERPA_CATEGORY: EDUCATIONAL_RECORD
+          
+      - name: FINAL_NUMERIC_GRADE
+        type: NUMBER(5,2)
+        description: "Final numeric grade (0-100)"
+        constraints: []
+        tags:
+          DATA_CLASSIFICATION: CONFIDENTIAL
+          PII_TYPE: LOW
+          AI_ALLOWED: AGGREGATED_ONLY
+          FERPA_CATEGORY: EDUCATIONAL_RECORD
+
+      # ── System Columns ──
+      - name: _LOADED_AT
+        type: TIMESTAMP_NTZ
+        description: "Snowflake ingestion timestamp"
+        constraints:
+          - not_null
+        system_managed: true
+        
+      - name: _SOURCE_SYSTEM
+        type: VARCHAR(50)
+        description: "Source system identifier"
+        system_managed: true
+        
+      - name: _ROW_HASH
+        type: VARCHAR(64)
+        description: "SHA256 hash of business columns"
+        system_managed: true
+        
+      - name: _IS_CURRENT
+        type: BOOLEAN
+        description: "SCD Type 2 current record flag"
+        system_managed: true
+        
+      - name: _VALID_FROM
+        type: TIMESTAMP_NTZ
+        description: "SCD Type 2 effective start"
+        system_managed: true
+        
+      - name: _VALID_TO
+        type: TIMESTAMP_NTZ
+        description: "SCD Type 2 effective end"
+        system_managed: true
+
+  sla:
+    freshness:
+      max_age_minutes: 60
+      measurement: "MAX(_LOADED_AT) vs CURRENT_TIMESTAMP()"
+      
+    completeness:
+      threshold_percent: 99.9
+      critical_columns:
+        - ENROLLMENT_ID
+        - STUDENT_ID
+        - SECTION_ID
+        - ENROLLMENT_STATUS
+        
+    availability:
+      uptime_percent: 99.9
+      maintenance_window: "Saturday 02:00-04:00 EST"
+      
+    volume:
+      expected_daily_rows:
+        min: 480000
+        max: 520000
+      alert_on_variance_percent: 5
+
+  quality_rules:
+    - id: qr_001
+      name: valid_enrollment_id
+      type: column_check
+      column: ENROLLMENT_ID
+      sql: "ENROLLMENT_ID IS NOT NULL"
+      severity: error
+      
+    - id: qr_002
+      name: valid_student_reference
+      type: cross_table_check
+      sql: "ALL STUDENT_ID VALUES EXIST IN STUDENT_RAW.STUDENT_ID"
+      severity: error
+      
+    - id: qr_003
+      name: valid_date_range
+      type: table_check
+      sql: "DROP_DATE IS NULL OR DROP_DATE >= ENROLLMENT_DATE"
+      severity: error
+      
+    - id: qr_004
+      name: grade_range
+      type: column_check
+      column: FINAL_NUMERIC_GRADE
+      sql: "FINAL_NUMERIC_GRADE IS NULL OR FINAL_NUMERIC_GRADE BETWEEN 0 AND 100"
+      severity: warning
+
+  governance:
+    classification: CONFIDENTIAL
+    residency_requirements:
+      - "Grade data requires FERPA protection"
+    retention_days: 2555
+    ai_eligibility: AGGREGATED_ONLY
+    compliance_frameworks:
+      - FERPA
+    
+  lineage:
+    source_systems:
+      - name: PowerSchool SIS
+        connection: POWERSCHOOL_API
+        extraction: CDC_STREAM
+        
+    downstream_dependencies:
+      - contract_id: curated_fact_enrollment_v1
+        type: transformation
+      - contract_id: sem_student_analytics_v1
+        type: product
+
+  consumers:
+    - team: Teachers
+      contact: teachers@district.edu
+      use_case: Class roster and gradebook
+      access_level: read_masked
+      
+    - team: Analytics
+      contact: analytics@district.edu
+      use_case: Enrollment analysis
+      access_level: read_masked

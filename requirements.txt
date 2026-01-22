@@ -1,0 +1,25 @@
+# Massachusetts School District Horizon Demo
+# Python dependencies for tools and utilities
+
+# YAML parsing for contract validation
+PyYAML>=6.0.1
+
+# JSON Schema validation
+jsonschema>=4.21.0
+
+# Snowflake connectivity (for local testing)
+snowflake-connector-python>=3.6.0
+snowflake-snowpark-python>=1.11.0
+
+# Data manipulation
+pandas>=2.0.0
+
+# For synthetic data generation
+Faker>=22.0.0
+
+# CLI utilities
+click>=8.1.0
+
+# Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
