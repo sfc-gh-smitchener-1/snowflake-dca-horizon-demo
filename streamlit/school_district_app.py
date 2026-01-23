@@ -13,7 +13,6 @@ import pandas as pd
 import requests
 import json
 from snowflake.snowpark.context import get_active_session
-from snowflake.cortex import Complete
 
 # ============================================================================
 # PAGE CONFIGURATION
@@ -287,40 +286,48 @@ def get_table_info_for_view(semantic_view: str) -> str:
     return view_to_table.get(semantic_view, 'CURATED_DEV.CURATED_DIMENSIONS.DIM_STUDENT')
 
 def call_cortex_complete_fallback(prompt: str, semantic_view: str):
-    """Fallback using Cortex Complete SDK to generate SQL for semantic views."""
+    """Fallback using CORTEX.COMPLETE SQL function to generate SQL for semantic views."""
+    session = get_session()
     
     try:
         # Get metadata about the semantic view
         view_info = get_semantic_view_info(semantic_view)
         underlying_table = get_table_info_for_view(semantic_view)
         
-        # Build the prompt for the LLM
-        llm_prompt = f"""You are a SQL expert. Generate a Snowflake SQL query to answer the user question.
+        # Escape single quotes for SQL
+        escaped_prompt = prompt.replace("'", "''")
+        escaped_info = view_info.replace("'", "''")
+        escaped_table = underlying_table.replace("'", "''")
+        
+        # Use CORTEX.COMPLETE via SQL (universally compatible)
+        result = session.sql(f"""
+            SELECT SNOWFLAKE.CORTEX.COMPLETE(
+                'llama3.1-70b',
+                'You are a SQL expert. Generate a Snowflake SQL query to answer the user question.
 
 IMPORTANT: Query the underlying table directly, NOT the semantic view.
 
-UNDERLYING TABLE: {underlying_table}
+UNDERLYING TABLE: {escaped_table}
 
 AVAILABLE COLUMNS (use exact names):
-{view_info}
+{escaped_info}
 
 RULES:
-1. Query {underlying_table} directly using standard SQL
+1. Query {escaped_table} directly using standard SQL
 2. Use exact column names as listed above
 3. For counts, use COUNT(*) or COUNT(column_name)
 4. For aggregations, use appropriate GROUP BY
 5. Return ONLY the SQL query, no explanation
 6. Do not use SEMANTIC_VIEW() function
 
-USER QUESTION: {prompt}
+USER QUESTION: {escaped_prompt}
 
-SQL Query:"""
+SQL Query:'
+            ) AS response
+        """).to_pandas()
         
-        # Use the Cortex Complete SDK function
-        response = Complete("llama3.1-70b", llm_prompt)
-        
-        if response:
-            sql = response.strip()
+        if not result.empty and result['RESPONSE'].iloc[0]:
+            sql = result['RESPONSE'].iloc[0].strip()
             
             # Clean up the SQL
             if '```' in sql:
