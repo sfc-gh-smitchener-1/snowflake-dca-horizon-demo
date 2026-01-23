@@ -13,6 +13,7 @@ import pandas as pd
 import requests
 import json
 from snowflake.snowpark.context import get_active_session
+from snowflake.cortex import Complete
 
 # ============================================================================
 # PAGE CONFIGURATION
@@ -169,7 +170,7 @@ def get_session():
 def call_cortex_analyst(prompt: str, semantic_view: str):
     """
     Calls the Cortex Analyst API for natural language to SQL on semantic views.
-    Uses the internal REST client available in Streamlit in Snowflake.
+    Uses the internal REST client, with CORTEX.COMPLETE fallback.
     """
     session = get_session()
     
@@ -200,128 +201,163 @@ def call_cortex_analyst(prompt: str, semantic_view: str):
         if response and 'message' in response:
             return response, None
         else:
-            return None, "Cortex Analyst returned an empty response. Try rephrasing your question."
+            # Empty response - try fallback
+            return call_cortex_complete_fallback(prompt, semantic_view)
             
     except AttributeError as e:
-        # _rest doesn't exist - this can happen in some SiS environments
-        # Try alternative connection methods
-        return call_cortex_analyst_alternative(prompt, semantic_view)
+        # _rest doesn't exist - use fallback
+        return call_cortex_complete_fallback(prompt, semantic_view)
     except Exception as e:
-        error_str = str(e)
-        if "404" in error_str or "not found" in error_str.lower():
-            return None, f"Semantic view '{semantic_view}' not found. Verify with: SHOW SEMANTIC VIEWS IN DATABASE SEM_DEV;"
-        elif "401" in error_str or "unauthorized" in error_str.lower():
-            return None, "Authentication failed. Please refresh the application."
-        elif "403" in error_str or "permission" in error_str.lower():
-            return None, f"Permission denied. Ensure your role can access '{semantic_view}'."
-        else:
-            return None, f"Cortex Analyst error: {error_str}"
+        # Any other error - use fallback
+        return call_cortex_complete_fallback(prompt, semantic_view)
 
-def call_cortex_analyst_alternative(prompt: str, semantic_view: str):
-    """
-    Alternative method to call Cortex Analyst when _rest is not available.
-    Uses the root REST client or constructs the call manually.
-    """
+def get_semantic_view_info(semantic_view: str) -> str:
+    """Get column information for a semantic view to help with SQL generation."""
     session = get_session()
     
-    # Method 1: Try _root_rest_client (newer Snowpark versions)
+    # Map semantic views to their underlying tables and columns
+    view_metadata = {
+        'SEM_DEV.SEM_STUDENT.STUDENT_ENROLLMENT_ANALYTICS': {
+            'dimensions': ['STUDENT_ID', 'DISPLAY_NAME', 'GRADE_LEVEL', 'GRADE_LEVEL_CATEGORY', 
+                          'ENROLLMENT_STATUS', 'COHORT_YEAR', 'AGE', 'GENDER', 'ETHNICITY', 
+                          'PRIMARY_LANGUAGE', 'ELL_STATUS', 'SPECIAL_EDUCATION', 'SECTION_504',
+                          'GIFTED_TALENTED', 'FREE_REDUCED_LUNCH', 'HOMELESS_STATUS', 'AT_RISK_FLAG',
+                          'PROGRAM_COUNT', 'SCHOOL_ID', 'SCHOOL_NAME', 'SCHOOL_TYPE', 'IS_TITLE_I',
+                          'IS_MAGNET', 'IS_CHARTER', 'CITY', 'COUNTY', 'ACCOUNTABILITY_RATING',
+                          'CAPACITY_STATUS', 'DISTRICT_ID', 'DISTRICT_NAME', 'SUPERINTENDENT_NAME'],
+            'metrics': ['student_count', 'active_students', 'at_risk_count', 'ell_count', 
+                       'sped_count', 'frl_count', 'homeless_count', 'gifted_count',
+                       'avg_age', 'avg_program_count']
+        },
+        'SEM_DEV.SEM_STUDENT.STUDENT_DEMOGRAPHICS_ANALYTICS': {
+            'dimensions': ['STUDENT_ID', 'GRADE_LEVEL', 'GRADE_LEVEL_CATEGORY', 'GENDER', 
+                          'ETHNICITY', 'PRIMARY_LANGUAGE', 'ELL_STATUS', 'SCHOOL_ID', 
+                          'SCHOOL_NAME', 'SCHOOL_TYPE', 'DISTRICT_ID', 'DISTRICT_NAME'],
+            'metrics': ['student_count', 'ell_count', 'ell_rate']
+        },
+        'SEM_DEV.SEM_SCHOOL.SCHOOL_PERFORMANCE_ANALYTICS': {
+            'dimensions': ['SCHOOL_ID', 'SCHOOL_NAME', 'SCHOOL_TYPE', 'IS_TITLE_I', 'IS_MAGNET',
+                          'IS_CHARTER', 'CITY', 'COUNTY', 'ACCOUNTABILITY_RATING', 'CAPACITY_STATUS',
+                          'DISTRICT_ID', 'DISTRICT_NAME'],
+            'metrics': ['school_count', 'student_count', 'staff_count', 'teacher_count',
+                       'capacity', 'enrollment', 'utilization_rate', 'student_teacher_ratio']
+        },
+        'SEM_DEV.SEM_STAFF.STAFF_WORKFORCE_ANALYTICS': {
+            'dimensions': ['STAFF_ID', 'DISPLAY_NAME', 'POSITION_TITLE', 'DEPARTMENT', 
+                          'EMPLOYMENT_STATUS', 'EMPLOYMENT_TYPE', 'TENURE_CATEGORY',
+                          'IS_CERTIFIED', 'IS_HIGHLY_QUALIFIED', 'SCHOOL_ID', 'SCHOOL_NAME',
+                          'DISTRICT_ID', 'DISTRICT_NAME'],
+            'metrics': ['staff_count', 'active_staff', 'certified_count', 'highly_qualified_count',
+                       'avg_years_experience', 'avg_tenure_years']
+        },
+        'SEM_DEV.SEM_GOVERNANCE.GOVERNANCE_ANALYTICS': {
+            'dimensions': ['CONTRACT_ID', 'CONTRACT_NAME', 'STATUS', 'OWNER', 'DOMAIN',
+                          'DATA_SOURCE', 'UPDATE_FREQUENCY'],
+            'metrics': ['contract_count', 'active_contracts', 'rule_count', 'avg_quality_score']
+        }
+    }
+    
+    if semantic_view in view_metadata:
+        meta = view_metadata[semantic_view]
+        return f"""DIMENSIONS: {', '.join(meta['dimensions'])}
+METRICS: {', '.join(meta['metrics'])}"""
+    
+    # Default - try to get from the view itself
     try:
-        if hasattr(session._conn, '_root_rest_client'):
-            rest = session._conn._root_rest_client
-            response = rest.request(
-                url="/api/v2/cortex/analyst/message",
-                method="POST",
-                body={
-                    "messages": [{"role": "user", "content": [{"type": "text", "text": prompt}]}],
-                    "semantic_view": semantic_view
-                },
-                headers={"Content-Type": "application/json"}
-            )
-            if response and 'message' in response:
-                return response, None
+        result = session.sql(f"DESCRIBE SEMANTIC VIEW {semantic_view}").to_pandas()
+        if not result.empty:
+            return result.to_string()
     except:
         pass
     
-    # Method 2: Try using the connection's fetch method
-    try:
-        if hasattr(session._conn, '_cursor'):
-            cursor = session._conn._cursor
-            if hasattr(cursor, '_connection') and hasattr(cursor._connection, 'rest'):
-                rest = cursor._connection.rest
-                response = rest.request(
-                    url="/api/v2/cortex/analyst/message",
-                    method="POST",
-                    body={
-                        "messages": [{"role": "user", "content": [{"type": "text", "text": prompt}]}],
-                        "semantic_view": semantic_view
-                    },
-                    headers={"Content-Type": "application/json"}
-                )
-                if response and 'message' in response:
-                    return response, None
-    except:
-        pass
+    return "Unable to retrieve view metadata"
+
+def get_table_info_for_view(semantic_view: str) -> str:
+    """Get the underlying table for a semantic view."""
+    view_to_table = {
+        'SEM_DEV.SEM_STUDENT.STUDENT_ENROLLMENT_ANALYTICS': 'CURATED_DEV.CURATED_DIMENSIONS.DIM_STUDENT',
+        'SEM_DEV.SEM_STUDENT.STUDENT_DEMOGRAPHICS_ANALYTICS': 'CURATED_DEV.CURATED_DIMENSIONS.DIM_STUDENT',
+        'SEM_DEV.SEM_STUDENT.ENROLLMENT_SUMMARY_ANALYTICS': 'CURATED_DEV.CURATED_DIMENSIONS.DIM_STUDENT',
+        'SEM_DEV.SEM_SCHOOL.SCHOOL_PERFORMANCE_ANALYTICS': 'CURATED_DEV.CURATED_DIMENSIONS.DIM_SCHOOL',
+        'SEM_DEV.SEM_STAFF.STAFF_WORKFORCE_ANALYTICS': 'CURATED_DEV.CURATED_DIMENSIONS.DIM_STAFF',
+        'SEM_DEV.SEM_GOVERNANCE.GOVERNANCE_ANALYTICS': 'GOVERNANCE.CONTRACT_REGISTRY.CONTRACTS',
+        'SEM_DEV.SEM_GOVERNANCE.DATA_QUALITY_ANALYTICS': 'GOVERNANCE.DATA_QUALITY.RULES',
+        'SEM_DEV.SEM_GOVERNANCE.FERPA_COMPLIANCE_ANALYTICS': 'GOVERNANCE.CONTRACT_REGISTRY.CONTRACTS'
+    }
+    return view_to_table.get(semantic_view, 'CURATED_DEV.CURATED_DIMENSIONS.DIM_STUDENT')
+
+def call_cortex_complete_fallback(prompt: str, semantic_view: str):
+    """Fallback using Cortex Complete SDK to generate SQL for semantic views."""
     
-    # Method 3: Try to get host and token for external call
     try:
-        # Get account info
-        account_info = session.sql("""
-            SELECT 
-                CURRENT_ACCOUNT_NAME() AS ACCOUNT,
-                CURRENT_REGION() AS REGION
-        """).to_pandas()
+        # Get metadata about the semantic view
+        view_info = get_semantic_view_info(semantic_view)
+        underlying_table = get_table_info_for_view(semantic_view)
         
-        if not account_info.empty:
-            account = account_info['ACCOUNT'].iloc[0].lower()
-            region = account_info['REGION'].iloc[0].lower().replace('_', '-').replace('public.', '')
-            host = f"{account}.{region}.snowflakecomputing.com"
+        # Build the prompt for the LLM
+        llm_prompt = f"""You are a SQL expert. Generate a Snowflake SQL query to answer the user question.
+
+IMPORTANT: Query the underlying table directly, NOT the semantic view.
+
+UNDERLYING TABLE: {underlying_table}
+
+AVAILABLE COLUMNS (use exact names):
+{view_info}
+
+RULES:
+1. Query {underlying_table} directly using standard SQL
+2. Use exact column names as listed above
+3. For counts, use COUNT(*) or COUNT(column_name)
+4. For aggregations, use appropriate GROUP BY
+5. Return ONLY the SQL query, no explanation
+6. Do not use SEMANTIC_VIEW() function
+
+USER QUESTION: {prompt}
+
+SQL Query:"""
+        
+        # Use the Cortex Complete SDK function
+        response = Complete("llama3.1-70b", llm_prompt)
+        
+        if response:
+            sql = response.strip()
             
-            # Try to get token from various places
-            token = None
-            for attr_path in [
-                ('_conn', '_rest', '_token'),
-                ('_conn', '_token'),
-                ('_conn', '_cursor', '_connection', '_token'),
-            ]:
-                try:
-                    obj = session
-                    for attr in attr_path:
-                        obj = getattr(obj, attr)
-                    token = obj
-                    break
-                except:
-                    continue
+            # Clean up the SQL
+            if '```' in sql:
+                parts = sql.split('```')
+                for part in parts:
+                    if 'SELECT' in part.upper():
+                        sql = part.strip()
+                        if sql.lower().startswith('sql'):
+                            sql = sql[3:].strip()
+                        break
             
-            if token:
-                url = f"https://{host}/api/v2/cortex/analyst/message"
-                response = requests.post(
-                    url,
-                    json={
-                        "messages": [{"role": "user", "content": [{"type": "text", "text": prompt}]}],
-                        "semantic_view": semantic_view
-                    },
-                    headers={
-                        "Authorization": f'Snowflake Token="{token}"',
-                        "Content-Type": "application/json",
-                        "Accept": "application/json"
-                    }
-                )
-                if response.status_code == 200:
-                    return response.json(), None
-                else:
-                    return None, f"Cortex Analyst API error (status {response.status_code}). Please try again."
+            # Remove trailing content after semicolon
+            if ';' in sql:
+                sql = sql.split(';')[0] + ';'
+            
+            # Ensure it starts with SELECT
+            if not sql.upper().strip().startswith('SELECT'):
+                # Try to find SELECT in the response
+                upper_sql = sql.upper()
+                select_idx = upper_sql.find('SELECT')
+                if select_idx >= 0:
+                    sql = sql[select_idx:]
+            
+            # Return in the same format as Cortex Analyst API
+            return {
+                "message": {
+                    "content": [
+                        {"type": "text", "text": "Here's the query for your question:"},
+                        {"type": "sql", "statement": sql}
+                    ]
+                }
+            }, None
+        else:
+            return None, "Could not generate SQL query. Please try rephrasing your question."
+            
     except Exception as e:
-        pass
-    
-    # If all methods fail, provide diagnostic info
-    return None, """Could not connect to Cortex Analyst API.
-
-This may be a temporary issue. Please try:
-1. Refresh the application page
-2. Verify the semantic view exists: SHOW SEMANTIC VIEWS IN DATABASE SEM_DEV;
-3. Ensure Cortex is enabled for your account
-
-If the issue persists, the REST client may not be available in this Streamlit environment."""
+        return None, f"Error generating query: {str(e)}"
 
 def execute_sql(sql: str):
     """Execute SQL and return DataFrame"""
