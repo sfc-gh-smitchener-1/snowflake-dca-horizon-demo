@@ -200,9 +200,18 @@ This demo implements comprehensive **FERPA (Family Educational Rights and Privac
    -- Step 8: Observability (AS DATA_ADMIN)
    -- Creates monitoring views and dashboards
    @sql/08_observability.sql
+   
+   -- Step 9: Streamlit App (AS DATA_ADMIN)
+   -- Deploys the Streamlit application
+   @sql/09_streamlit_app.sql
    ```
 
-3. **Launch the Streamlit App**
+3. **Upload Streamlit Python file** (via SnowSQL or Snowflake CLI)
+   ```bash
+   PUT file://streamlit/school_district_app.py @SEM_DEV.STREAMLIT_APPS.STREAMLIT_STAGE AUTO_COMPRESS=FALSE OVERWRITE=TRUE;
+   ```
+
+4. **Launch the Streamlit App**
    
    Navigate to: **Projects → Streamlit → SCHOOL_DISTRICT_DEMO**
 
@@ -246,6 +255,7 @@ snowflake-dca-horizon-demo/
 │   ├── 06_semantic_layer.sql           # Native Snowflake Semantic Views
 │   ├── 07_horizon_policies.sql         # Masking and row access policies
 │   ├── 08_observability.sql            # Monitoring views
+│   ├── 09_streamlit_app.sql            # Streamlit app deployment
 │   └── 99_cleanup.sql                  # Reset/cleanup script
 │
 ├── streamlit/                          # Streamlit in Snowflake App
