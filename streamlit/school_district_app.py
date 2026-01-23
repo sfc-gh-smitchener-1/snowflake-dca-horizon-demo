@@ -299,13 +299,12 @@ def call_cortex_complete_fallback(prompt: str, semantic_view: str):
                 'llama3.1-70b',
                 'You are a SQL expert. Generate a Snowflake SQL query using the SEMANTIC_VIEW() function.
 
-SEMANTIC VIEW: {escaped_view}
+SEMANTIC VIEW NAME (use exactly as shown, no quotes): {escaped_view}
 
 {escaped_info}
 
-SYNTAX FOR SEMANTIC_VIEW():
-SELECT * FROM SEMANTIC_VIEW(
-  ''{escaped_view}''
+CORRECT SYNTAX FOR SEMANTIC_VIEW():
+SELECT * FROM SEMANTIC_VIEW({escaped_view}
   DIMENSIONS dim1, dim2
   METRICS metric1, metric2
 )
@@ -313,30 +312,27 @@ SELECT * FROM SEMANTIC_VIEW(
 EXAMPLE QUERIES:
 
 -- Count students by grade level
-SELECT * FROM SEMANTIC_VIEW(
-  ''{escaped_view}''
+SELECT * FROM SEMANTIC_VIEW({escaped_view}
   DIMENSIONS GRADE_LEVEL
   METRICS student_count
 )
 
--- Get enrollment by school type
-SELECT * FROM SEMANTIC_VIEW(
-  ''{escaped_view}''
+-- Get enrollment by school type  
+SELECT * FROM SEMANTIC_VIEW({escaped_view}
   DIMENSIONS SCHOOL_TYPE
   METRICS student_count, active_students
 )
 
--- Get demographics with multiple dimensions
-SELECT * FROM SEMANTIC_VIEW(
-  ''{escaped_view}''
+-- Get demographics breakdown
+SELECT * FROM SEMANTIC_VIEW({escaped_view}
   DIMENSIONS ETHNICITY, GENDER
   METRICS student_count
 )
 
 CRITICAL RULES:
-1. Always use SEMANTIC_VIEW() function with the exact semantic view name
-2. List dimensions after DIMENSIONS keyword (no quotes, comma separated)
-3. List metrics after METRICS keyword (no quotes, comma separated)
+1. The semantic view name has NO QUOTES - use it exactly as: {escaped_view}
+2. DIMENSIONS keyword followed by dimension names (comma separated, no quotes)
+3. METRICS keyword followed by metric names (comma separated, no quotes)
 4. Use exact dimension/metric names from the lists above
 5. Return ONLY the SQL query, no explanation or markdown
 
