@@ -1,0 +1,12 @@
+# Requirements for Faker-based Synthetic Data Generator
+# Install with: pip install -r requirements.txt
+
+# Core data generation
+faker>=24.0.0
+
+# Optional: For Parquet output format
+pyarrow>=14.0.0
+
+# Optional: For Snowflake connectivity (direct upload)
+snowflake-connector-python>=3.6.0
+snowflake-snowpark-python>=1.11.0

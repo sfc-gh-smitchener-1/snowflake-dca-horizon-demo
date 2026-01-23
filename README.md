@@ -159,61 +159,117 @@ This demo implements comprehensive **FERPA (Family Educational Rights and Privac
 
 - Snowflake account with ACCOUNTADMIN role
 - Access to Snowflake Cortex (for AI features)
+- Python 3.9+ with Faker library (for data generation)
 
 ### Installation
 
-1. **Clone the repository**
+#### Option A: Generate Diverse Data with Python (Recommended)
+
+1. **Install Python dependencies**
    ```bash
-   cd snowflake-dca-contracts-demo/snowflake-dca-horizon-demo
+   cd tools
+   pip install -r requirements.txt
    ```
 
-2. **Run setup scripts in order**
+2. **Generate synthetic data with Faker**
+   ```bash
+   # Full dataset (100K students, ~5-10 minutes)
+   python faker_data_generator.py --output-dir ../data --format csv
+   
+   # Quick test dataset (1K students, ~30 seconds)
+   python faker_data_generator.py --output-dir ../data --format csv --quick
+   ```
+
+3. **Run Snowflake setup scripts**
    ```sql
    -- Step 1: Initial Setup (AS ACCOUNTADMIN)
-   -- Creates roles, warehouses, databases, schemas, tags
    @sql/01_setup.sql
    
    -- Step 2: Contract Registry (AS DATA_ADMIN)
-   -- Creates contract management tables
    @sql/02_contract_registry.sql
    
    -- Step 3: RAW Layer Tables (AS DATA_ADMIN)
-   -- Creates empty RAW tables with SCD Type 2 columns
    @sql/03_raw_layer_tables.sql
-   
-   -- Step 4: Generate & Load Synthetic Data (AS DATA_ADMIN)
-   -- Creates staging tables and loads data using MERGE with SCD Type 2
-   @sql/04_generate_synthetic_data.sql
-   
-   -- Step 5: Curated Layer Dynamic Tables (AS DATA_ADMIN)
-   -- Creates Dynamic Tables with derived attributes
+   ```
+
+4. **Upload CSV files to Snowflake stage**
+   ```bash
+   # Using SnowSQL
+   snowsql -c my_connection -q "PUT file://data/*.csv @RAW_DEV.STAGING.DATA_STAGE/ AUTO_COMPRESS=TRUE OVERWRITE=TRUE"
+   ```
+
+5. **Load data into RAW tables**
+   ```sql
+   -- Step 4: Load Faker-generated data (AS DATA_ADMIN)
+   @sql/04_load_synthetic_data.sql
+   ```
+
+6. **Complete remaining setup**
+   ```sql
+   -- Step 5: Curated Layer Dynamic Tables
    @sql/05_curated_layer_dynamic_tables.sql
    
-   -- Step 6: Semantic Layer (AS DATA_ADMIN)
-   -- Creates Snowflake Semantic Views for Cortex Analyst
+   -- Step 6: Semantic Layer (Semantic Views)
    @sql/06_semantic_layer.sql
    
-   -- Step 7: Horizon Policies (AS DATA_ADMIN)
-   -- Creates masking and row access policies
+   -- Step 7: Horizon Policies
    @sql/07_horizon_policies.sql
    
-   -- Step 8: Observability (AS DATA_ADMIN)
-   -- Creates monitoring views and dashboards
+   -- Step 8: Observability
    @sql/08_observability.sql
    
-   -- Step 9: Streamlit App (AS DATA_ADMIN)
-   -- Deploys the Streamlit application
+   -- Step 9: Streamlit App
    @sql/09_streamlit_app.sql
    ```
 
-3. **Upload Streamlit Python file** (via SnowSQL or Snowflake CLI)
+7. **Upload Streamlit Python file**
    ```bash
    PUT file://streamlit/school_district_app.py @SEM_DEV.STREAMLIT_APPS.STREAMLIT_STAGE AUTO_COMPRESS=FALSE OVERWRITE=TRUE;
    ```
 
-4. **Launch the Streamlit App**
+8. **Launch the Streamlit App**
    
    Navigate to: **Projects → Streamlit → SCHOOL_DISTRICT_DEMO**
+
+#### Option B: Quick Setup with SQL-only Generation
+
+For a faster demo with simpler generated data:
+
+```sql
+-- Run all SQL scripts in order (01-09)
+-- Script 04_generate_synthetic_data.sql generates data within Snowflake
+@sql/01_setup.sql
+@sql/02_contract_registry.sql
+@sql/03_raw_layer_tables.sql
+@sql/04_generate_synthetic_data.sql  -- Uses SQL GENERATOR (less diverse names)
+@sql/05_curated_layer_dynamic_tables.sql
+@sql/06_semantic_layer.sql
+@sql/07_horizon_policies.sql
+@sql/08_observability.sql
+@sql/09_streamlit_app.sql
+```
+
+### Data Generation Features
+
+The Faker-based Python generator (`tools/faker_data_generator.py`) creates highly diverse, realistic data:
+
+| Feature | Description |
+|---------|-------------|
+| **Culturally Diverse Names** | Names from 15+ language locales reflecting MA demographics |
+| **Realistic Addresses** | 100+ MA cities with real zip codes, streets, and coordinates |
+| **School Naming** | Historical figures, geographic features, neighborhood names |
+| **Demographics** | Accurate ethnicity/language distributions for MA schools |
+| **Referential Integrity** | All foreign keys properly maintained across tables |
+| **SCD Type 2 Ready** | Row hashes computed for change detection |
+
+**Data volumes:**
+```bash
+# Full generation (default)
+python faker_data_generator.py --students 100000 --schools 250 --staff 12000 --guardians 150000
+
+# Custom generation
+python faker_data_generator.py --students 50000 --schools 100 --format parquet
+```
 
 ## Directory Structure
 
@@ -250,7 +306,8 @@ snowflake-dca-horizon-demo/
 │   ├── 01_setup.sql                    # Roles, warehouses, databases, tags
 │   ├── 02_contract_registry.sql        # Contract tables and procedures
 │   ├── 03_raw_layer_tables.sql         # RAW tables with SCD Type 2 columns
-│   ├── 04_generate_synthetic_data.sql  # Staging + SCD MERGE loading
+│   ├── 04_generate_synthetic_data.sql  # SQL-based synthetic data (quick)
+│   ├── 04_load_synthetic_data.sql      # Load Faker CSV data (recommended)
 │   ├── 05_curated_layer_dynamic_tables.sql  # Dynamic Tables (dims/facts)
 │   ├── 06_semantic_layer.sql           # Native Snowflake Semantic Views
 │   ├── 07_horizon_policies.sql         # Masking and row access policies
@@ -259,13 +316,23 @@ snowflake-dca-horizon-demo/
 │   └── 99_cleanup.sql                  # Reset/cleanup script
 │
 ├── streamlit/                          # Streamlit in Snowflake App
-│   └── school_district_app.py          # Main application
+│   └── school_district_app.py          # Main Cortex Analyst application
 │
 ├── tools/                              # Python utilities
 │   ├── __init__.py
-│   ├── synthetic_data_generator.py     # Generate MA school data
+│   ├── requirements.txt                # Python dependencies (Faker, etc.)
+│   ├── faker_data_generator.py         # Faker-based diverse data generation
+│   ├── synthetic_data_generator.py     # Original simpler generator
 │   ├── contract_validator.py           # Validate contracts
 │   └── ferpa_tagger.py                 # Auto-tag FERPA categories
+│
+├── data/                               # Generated synthetic data (gitignored)
+│   ├── districts.csv
+│   ├── schools.csv
+│   ├── students.csv
+│   ├── staff.csv
+│   ├── guardians.csv
+│   └── student_guardians.csv
 │
 ├── schemas/                            # JSON Schemas
 │   └── education_contract_schema.json  # Education-specific schema

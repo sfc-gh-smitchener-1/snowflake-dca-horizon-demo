@@ -4,6 +4,13 @@ sql/create_github_secret.sql
 *.secret
 *.credentials
 
+# Generated synthetic data (regenerate with faker_data_generator.py)
+data/
+synthetic_data/
+*.csv
+*.parquet
+!requirements.txt
+
 # Environment files
 .env
 .env.local
