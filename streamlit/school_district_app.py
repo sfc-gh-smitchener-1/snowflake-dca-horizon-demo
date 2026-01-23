@@ -552,7 +552,7 @@ def render_cortex_page():
         st.write("")
         if st.button("🔄 Refresh", use_container_width=True):
             st.cache_data.clear()
-            st.rerun()
+            st.experimental_rerun()
     
     st.divider()
     
@@ -629,7 +629,7 @@ def render_cortex_page():
             with cols[i % 2]:
                 if st.button(f"💬 {q}", key=f"sample_{i}", use_container_width=True):
                     process_question(q, selected_view)
-                    st.rerun()
+                    st.experimental_rerun()
     
     st.divider()
     
@@ -647,13 +647,13 @@ def render_cortex_page():
     
     if ask_clicked and user_question:
         process_question(user_question, selected_view)
-        st.rerun()
+        st.experimental_rerun()
     
     # Clear chat button
     if st.session_state.chat_history:
         if st.button("🗑️ Clear Chat", key="clear_chat"):
             st.session_state.chat_history = []
-            st.rerun()
+            st.experimental_rerun()
 
 def process_question(prompt: str, semantic_view: str):
     """Process a user question via Cortex Analyst API"""
