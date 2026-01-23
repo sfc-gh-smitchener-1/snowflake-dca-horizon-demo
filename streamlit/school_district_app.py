@@ -211,142 +211,134 @@ def call_cortex_analyst(prompt: str, semantic_view: str):
         return call_cortex_complete_fallback(prompt, semantic_view)
 
 def get_semantic_view_info(semantic_view: str) -> str:
-    """Get column information for a semantic view to help with SQL generation."""
-    session = get_session()
+    """Get dimensions and metrics for a semantic view to use with SEMANTIC_VIEW() function."""
     
-    # Map semantic views to their underlying tables and ACTUAL columns from DIM tables
+    # Map semantic views to their dimensions and metrics (from 06_semantic_layer.sql)
     view_metadata = {
         'SEM_DEV.SEM_STUDENT.STUDENT_ENROLLMENT_ANALYTICS': {
-            'columns': [
-                'STUDENT_KEY', 'STUDENT_ID', 'STUDENT_ID_HASH', 'STUDENT_NAME_HASH',
-                'FIRST_NAME', 'MIDDLE_NAME', 'LAST_NAME', 'PREFERRED_NAME', 'DISPLAY_NAME',
-                'SSN', 'STATE_ID', 'DATE_OF_BIRTH', 'AGE',
-                'GENDER', 'ETHNICITY', 'RACE', 'PRIMARY_LANGUAGE', 'ELL_STATUS',
-                'HOME_ADDRESS_LINE1', 'HOME_ADDRESS_LINE2', 'CITY', 'STATE', 'ZIP_CODE', 'COUNTY',
-                'CURRENT_SCHOOL_ID', 'CURRENT_DISTRICT_ID', 'GRADE_LEVEL', 'HOMEROOM',
-                'GRADE_LEVEL_CATEGORY', 'GRADE_LEVEL_NUM',
-                'ENROLLMENT_STATUS', 'ENROLLMENT_DATE', 'EXPECTED_GRADUATION_YEAR', 'COHORT_YEAR',
-                'SPECIAL_EDUCATION', 'SECTION_504', 'GIFTED_TALENTED', 'FREE_REDUCED_LUNCH', 'HOMELESS_STATUS',
-                'AT_RISK_FLAG', 'PROGRAM_COUNT'
+            'dimensions': [
+                'STUDENT_ID', 'DISPLAY_NAME', 'GRADE_LEVEL', 'GRADE_LEVEL_CATEGORY',
+                'ENROLLMENT_STATUS', 'COHORT_YEAR', 'AGE', 'GENDER', 'ETHNICITY',
+                'PRIMARY_LANGUAGE', 'ELL_STATUS', 'SPECIAL_EDUCATION', 'SECTION_504',
+                'GIFTED_TALENTED', 'FREE_REDUCED_LUNCH', 'HOMELESS_STATUS', 'AT_RISK_FLAG',
+                'PROGRAM_COUNT', 'SCHOOL_ID', 'SCHOOL_NAME', 'SCHOOL_TYPE', 'IS_TITLE_I',
+                'IS_MAGNET', 'IS_CHARTER', 'CITY', 'COUNTY', 'ACCOUNTABILITY_RATING',
+                'CAPACITY_STATUS', 'DISTRICT_ID', 'DISTRICT_NAME', 'SUPERINTENDENT_NAME'
             ],
-            'example_queries': [
-                "SELECT GRADE_LEVEL, COUNT(*) as student_count FROM table GROUP BY GRADE_LEVEL",
-                "SELECT ETHNICITY, COUNT(*) as count FROM table WHERE ENROLLMENT_STATUS = 'Active' GROUP BY ETHNICITY",
-                "SELECT CURRENT_DISTRICT_ID, COUNT(*) as students FROM table GROUP BY CURRENT_DISTRICT_ID"
+            'metrics': [
+                'student_count', 'active_students', 'at_risk_count', 'ell_count',
+                'sped_count', 'section504_count', 'gifted_count', 'frl_count', 'homeless_count',
+                'school_count', 'title_i_count', 'total_capacity', 'total_enrollment',
+                'ell_rate', 'sped_rate', 'frl_rate', 'at_risk_rate', 'capacity_utilization'
             ]
         },
         'SEM_DEV.SEM_STUDENT.STUDENT_DEMOGRAPHICS_ANALYTICS': {
-            'columns': [
-                'STUDENT_KEY', 'STUDENT_ID', 'DISPLAY_NAME', 'GRADE_LEVEL', 'GRADE_LEVEL_CATEGORY',
-                'GENDER', 'ETHNICITY', 'RACE', 'PRIMARY_LANGUAGE', 'ELL_STATUS',
-                'CURRENT_SCHOOL_ID', 'CURRENT_DISTRICT_ID', 'ENROLLMENT_STATUS'
+            'dimensions': [
+                'GRADE_LEVEL', 'GRADE_LEVEL_CATEGORY', 'GENDER', 'ETHNICITY', 'RACE',
+                'PRIMARY_LANGUAGE', 'ELL_STATUS', 'FREE_REDUCED_LUNCH', 'COUNTY',
+                'SCHOOL_NAME', 'SCHOOL_TYPE'
             ],
-            'example_queries': [
-                "SELECT ETHNICITY, COUNT(*) as count FROM table GROUP BY ETHNICITY",
-                "SELECT GENDER, COUNT(*) as count FROM table GROUP BY GENDER"
-            ]
+            'metrics': ['student_count', 'ell_count', 'ell_rate', 'frl_count', 'frl_rate']
         },
         'SEM_DEV.SEM_SCHOOL.SCHOOL_PERFORMANCE_ANALYTICS': {
-            'columns': [
-                'SCHOOL_ID', 'SCHOOL_NAME', 'SCHOOL_TYPE', 'DISTRICT_ID',
-                'IS_TITLE_I', 'IS_MAGNET', 'IS_CHARTER',
-                'CITY', 'COUNTY', 'STATE', 'ZIP_CODE',
-                'BUILDING_CAPACITY', 'CURRENT_ENROLLMENT', 'CAPACITY_UTILIZATION_PCT', 'CAPACITY_STATUS',
-                'STAFF_COUNT', 'TEACHER_COUNT', 'STUDENT_TEACHER_RATIO',
-                'ACCOUNTABILITY_RATING', 'GRADUATION_RATE', 'ATTENDANCE_RATE'
+            'dimensions': [
+                'SCHOOL_ID', 'SCHOOL_NAME', 'SCHOOL_TYPE', 'IS_TITLE_I', 'IS_MAGNET',
+                'IS_CHARTER', 'CITY', 'COUNTY', 'ACCOUNTABILITY_RATING', 'CAPACITY_STATUS',
+                'DISTRICT_ID', 'DISTRICT_NAME'
             ],
-            'example_queries': [
-                "SELECT SCHOOL_TYPE, COUNT(*) as count FROM table GROUP BY SCHOOL_TYPE",
-                "SELECT SCHOOL_NAME, CURRENT_ENROLLMENT FROM table ORDER BY CURRENT_ENROLLMENT DESC LIMIT 10"
+            'metrics': [
+                'school_count', 'total_capacity', 'total_enrollment', 'capacity_utilization',
+                'staff_count', 'teacher_count', 'student_teacher_ratio', 'avg_graduation_rate'
             ]
         },
         'SEM_DEV.SEM_STAFF.STAFF_WORKFORCE_ANALYTICS': {
-            'columns': [
-                'STAFF_KEY', 'STAFF_ID', 'FIRST_NAME', 'LAST_NAME', 'DISPLAY_NAME',
-                'POSITION_TITLE', 'DEPARTMENT', 'PRIMARY_SCHOOL_ID', 'PRIMARY_DISTRICT_ID',
-                'EMPLOYMENT_STATUS', 'EMPLOYMENT_TYPE', 'HIRE_DATE', 'TERMINATION_DATE',
-                'YEARS_EXPERIENCE', 'TENURE_YEARS', 'TENURE_CATEGORY',
-                'SALARY', 'IS_CERTIFIED', 'IS_HIGHLY_QUALIFIED', 'CERTIFICATIONS'
+            'dimensions': [
+                'STAFF_ID', 'DISPLAY_NAME', 'POSITION_TITLE', 'DEPARTMENT',
+                'EMPLOYMENT_STATUS', 'EMPLOYMENT_TYPE', 'TENURE_CATEGORY',
+                'IS_CERTIFIED', 'IS_HIGHLY_QUALIFIED', 'SCHOOL_ID', 'SCHOOL_NAME',
+                'DISTRICT_ID', 'DISTRICT_NAME'
             ],
-            'example_queries': [
-                "SELECT DEPARTMENT, COUNT(*) as count FROM table GROUP BY DEPARTMENT",
-                "SELECT POSITION_TITLE, AVG(SALARY) as avg_salary FROM table GROUP BY POSITION_TITLE"
+            'metrics': [
+                'staff_count', 'active_staff', 'certified_count', 'highly_qualified_count',
+                'avg_years_experience', 'avg_tenure_years', 'avg_salary'
             ]
         },
         'SEM_DEV.SEM_GOVERNANCE.GOVERNANCE_ANALYTICS': {
-            'columns': [
-                'CONTRACT_ID', 'CONTRACT_NAME', 'VERSION', 'STATUS', 'OWNER',
-                'DOMAIN', 'DATA_SOURCE', 'UPDATE_FREQUENCY', 'CREATED_AT', 'UPDATED_AT'
+            'dimensions': [
+                'CONTRACT_ID', 'CONTRACT_NAME', 'STATUS', 'OWNER', 'DOMAIN',
+                'DATA_SOURCE', 'UPDATE_FREQUENCY'
             ],
-            'example_queries': [
-                "SELECT STATUS, COUNT(*) as count FROM table GROUP BY STATUS"
-            ]
+            'metrics': ['contract_count', 'active_contracts', 'rule_count']
         }
     }
     
     if semantic_view in view_metadata:
         meta = view_metadata[semantic_view]
-        info = f"COLUMNS: {', '.join(meta['columns'])}"
-        if 'example_queries' in meta:
-            info += f"\n\nEXAMPLE QUERY PATTERNS:\n" + "\n".join(meta['example_queries'])
-        return info
-    
-    # Default - try to get from the view itself
-    try:
-        result = session.sql(f"DESCRIBE SEMANTIC VIEW {semantic_view}").to_pandas()
-        if not result.empty:
-            return result.to_string()
-    except:
-        pass
+        return f"""DIMENSIONS (for grouping/filtering): {', '.join(meta['dimensions'])}
+
+METRICS (for aggregations): {', '.join(meta['metrics'])}"""
     
     return "Unable to retrieve view metadata"
 
-def get_table_info_for_view(semantic_view: str) -> str:
-    """Get the underlying table for a semantic view."""
-    view_to_table = {
-        'SEM_DEV.SEM_STUDENT.STUDENT_ENROLLMENT_ANALYTICS': 'CURATED_DEV.CURATED_DIMENSIONS.DIM_STUDENT',
-        'SEM_DEV.SEM_STUDENT.STUDENT_DEMOGRAPHICS_ANALYTICS': 'CURATED_DEV.CURATED_DIMENSIONS.DIM_STUDENT',
-        'SEM_DEV.SEM_STUDENT.ENROLLMENT_SUMMARY_ANALYTICS': 'CURATED_DEV.CURATED_DIMENSIONS.DIM_STUDENT',
-        'SEM_DEV.SEM_SCHOOL.SCHOOL_PERFORMANCE_ANALYTICS': 'CURATED_DEV.CURATED_DIMENSIONS.DIM_SCHOOL',
-        'SEM_DEV.SEM_STAFF.STAFF_WORKFORCE_ANALYTICS': 'CURATED_DEV.CURATED_DIMENSIONS.DIM_STAFF',
-        'SEM_DEV.SEM_GOVERNANCE.GOVERNANCE_ANALYTICS': 'GOVERNANCE.CONTRACT_REGISTRY.CONTRACTS',
-        'SEM_DEV.SEM_GOVERNANCE.DATA_QUALITY_ANALYTICS': 'GOVERNANCE.DATA_QUALITY.RULES',
-        'SEM_DEV.SEM_GOVERNANCE.FERPA_COMPLIANCE_ANALYTICS': 'GOVERNANCE.CONTRACT_REGISTRY.CONTRACTS'
-    }
-    return view_to_table.get(semantic_view, 'CURATED_DEV.CURATED_DIMENSIONS.DIM_STUDENT')
-
 def call_cortex_complete_fallback(prompt: str, semantic_view: str):
-    """Fallback using CORTEX.COMPLETE SQL function to generate SQL for semantic views."""
+    """Fallback using CORTEX.COMPLETE SQL function to generate SQL using SEMANTIC_VIEW()."""
     session = get_session()
     
     try:
         # Get metadata about the semantic view
         view_info = get_semantic_view_info(semantic_view)
-        underlying_table = get_table_info_for_view(semantic_view)
         
         # Escape single quotes for SQL
         escaped_prompt = prompt.replace("'", "''")
         escaped_info = view_info.replace("'", "''")
-        escaped_table = underlying_table.replace("'", "''")
+        escaped_view = semantic_view.replace("'", "''")
         
-        # Use CORTEX.COMPLETE via SQL (universally compatible)
+        # Use CORTEX.COMPLETE via SQL to generate SEMANTIC_VIEW() queries
         result = session.sql(f"""
             SELECT SNOWFLAKE.CORTEX.COMPLETE(
                 'llama3.1-70b',
-                'You are a SQL expert. Generate a Snowflake SQL query to answer the user question.
+                'You are a SQL expert. Generate a Snowflake SQL query using the SEMANTIC_VIEW() function.
 
-TABLE TO QUERY: {escaped_table}
+SEMANTIC VIEW: {escaped_view}
 
 {escaped_info}
 
+SYNTAX FOR SEMANTIC_VIEW():
+SELECT * FROM SEMANTIC_VIEW(
+  ''{escaped_view}''
+  DIMENSIONS dim1, dim2
+  METRICS metric1, metric2
+)
+
+EXAMPLE QUERIES:
+
+-- Count students by grade level
+SELECT * FROM SEMANTIC_VIEW(
+  ''{escaped_view}''
+  DIMENSIONS GRADE_LEVEL
+  METRICS student_count
+)
+
+-- Get enrollment by school type
+SELECT * FROM SEMANTIC_VIEW(
+  ''{escaped_view}''
+  DIMENSIONS SCHOOL_TYPE
+  METRICS student_count, active_students
+)
+
+-- Get demographics with multiple dimensions
+SELECT * FROM SEMANTIC_VIEW(
+  ''{escaped_view}''
+  DIMENSIONS ETHNICITY, GENDER
+  METRICS student_count
+)
+
 CRITICAL RULES:
-1. Use ONLY the exact column names listed above - do NOT invent column names
-2. Use {escaped_table} as the table name
-3. For district questions, use CURRENT_DISTRICT_ID (not DISTRICT_ID)
-4. For school questions, use CURRENT_SCHOOL_ID (not SCHOOL_ID) when querying students
-5. For counts use COUNT(*), for averages use AVG()
-6. Include GROUP BY when using aggregates with non-aggregated columns
-7. Return ONLY the SQL query with no explanation, markdown, or comments
+1. Always use SEMANTIC_VIEW() function with the exact semantic view name
+2. List dimensions after DIMENSIONS keyword (no quotes, comma separated)
+3. List metrics after METRICS keyword (no quotes, comma separated)
+4. Use exact dimension/metric names from the lists above
+5. Return ONLY the SQL query, no explanation or markdown
 
 USER QUESTION: {escaped_prompt}
 
