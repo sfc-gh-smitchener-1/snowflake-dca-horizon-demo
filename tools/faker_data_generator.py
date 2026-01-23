@@ -620,6 +620,11 @@ class FakerDataGenerator:
         self.school_by_id: Dict[str, School] = {}
         self.district_by_id: Dict[str, District] = {}
         
+        # Name uniqueness tracking to reduce duplicates
+        self.used_full_names: set = set()
+        self.name_generation_attempts: int = 0
+        self.max_name_attempts: int = 5
+        
         # Demographics weights (based on MA school demographics)
         self.ethnicity_weights = {
             "White": 0.52,
@@ -710,26 +715,47 @@ class FakerDataGenerator:
         faker_instances = [f[0] for f in fakers]
         faker_weights = [f[1] for f in fakers]
         
-        # Select a faker instance
-        fake = random.choices(faker_instances, weights=faker_weights, k=1)[0]
-        
-        # Generate names
-        try:
-            if gender == "Male":
-                first_name = fake.first_name_male()
-            elif gender == "Female":
-                first_name = fake.first_name_female()
+        # Try to generate a unique name (up to max_name_attempts tries)
+        for attempt in range(self.max_name_attempts):
+            # Select a faker instance - vary it on retries to increase diversity
+            if attempt > 0:
+                # On retry, pick a different faker from the list
+                fake = random.choice(faker_instances)
             else:
-                first_name = fake.first_name()
+                fake = random.choices(faker_instances, weights=faker_weights, k=1)[0]
             
-            middle_name = fake.first_name() if random.random() < 0.7 else ""
-            last_name = fake.last_name()
-        except:
-            # Fallback to English if locale doesn't support gendered names
-            first_name = self.fake_en.first_name()
-            middle_name = self.fake_en.first_name() if random.random() < 0.7 else ""
-            last_name = self.fake_en.last_name()
+            # Generate names
+            try:
+                if gender == "Male":
+                    first_name = fake.first_name_male()
+                elif gender == "Female":
+                    first_name = fake.first_name_female()
+                else:
+                    first_name = fake.first_name()
+                
+                middle_name = fake.first_name() if random.random() < 0.7 else ""
+                last_name = fake.last_name()
+            except:
+                # Fallback to English if locale doesn't support gendered names
+                first_name = self.fake_en.first_name()
+                middle_name = self.fake_en.first_name() if random.random() < 0.7 else ""
+                last_name = self.fake_en.last_name()
+            
+            # Check uniqueness
+            full_name = f"{first_name}|{last_name}"
+            if full_name not in self.used_full_names:
+                self.used_full_names.add(full_name)
+                return first_name, middle_name, last_name
         
+        # If we couldn't find a unique name, add a suffix to make it unique
+        # This ensures we never have exact duplicates
+        suffix_num = len([n for n in self.used_full_names if n.startswith(f"{first_name}|{last_name}")])
+        if suffix_num > 0:
+            # Add a distinguishing middle initial or modify the name slightly
+            middle_name = self.fake_en.first_name()
+        
+        full_name = f"{first_name}|{middle_name}|{last_name}"
+        self.used_full_names.add(full_name)
         return first_name, middle_name, last_name
     
     def _generate_ssn(self) -> str:

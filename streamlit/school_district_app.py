@@ -462,6 +462,37 @@ def get_default_semantic_views():
 # SIDEBAR
 # ============================================================================
 
+def get_available_roles():
+    """Get list of education roles available for switching"""
+    return [
+        ("DATA_ADMIN", "🔧 Data Admin", "Full system access - sees all data unmasked"),
+        ("DISTRICT_ADMIN", "🏛️ District Admin", "District-wide access - sees all schools"),
+        ("PRINCIPAL", "🎓 Principal", "School-level access - sees their school only"),
+        ("TEACHER", "👨‍🏫 Teacher", "Classroom access - sees their students only"),
+        ("COUNSELOR", "💬 Counselor", "Student services - sees assigned students"),
+        ("REGISTRAR", "📋 Registrar", "Enrollment data - limited PII access"),
+        ("PARENT_PORTAL", "👨‍👩‍👧 Parent", "Portal access - sees own children only"),
+        ("AI_AGENT", "🤖 AI Agent", "Analytics access - no PII, aggregates only"),
+    ]
+
+def switch_role(role_name: str) -> bool:
+    """Attempt to switch to a different role"""
+    session = get_session()
+    try:
+        session.sql(f"USE ROLE {role_name}").collect()
+        return True
+    except Exception as e:
+        return False
+
+def get_current_role() -> str:
+    """Get the current active role"""
+    session = get_session()
+    try:
+        role_df = session.sql("SELECT CURRENT_ROLE() AS ROLE").to_pandas()
+        return role_df['ROLE'].iloc[0] if not role_df.empty else "Unknown"
+    except:
+        return "Unknown"
+
 def render_sidebar():
     """Render the sidebar navigation"""
     with st.sidebar:
@@ -475,6 +506,65 @@ def render_sidebar():
         
         st.divider()
         
+        # =================================================================
+        # ROLE SWITCHER - Demonstrates RBAC/ABAC
+        # =================================================================
+        st.markdown("### 🔐 Role Switcher")
+        st.caption("Switch roles to see RBAC/ABAC in action")
+        
+        available_roles = get_available_roles()
+        current_role = get_current_role()
+        
+        # Create role options for dropdown
+        role_options = [f"{r[1]}" for r in available_roles]
+        role_names = [r[0] for r in available_roles]
+        role_descriptions = {r[0]: r[2] for r in available_roles}
+        
+        # Find current role index
+        try:
+            current_idx = role_names.index(current_role)
+        except ValueError:
+            current_idx = 0
+        
+        # Role selector dropdown
+        selected_role_display = st.selectbox(
+            "Select Role",
+            role_options,
+            index=current_idx,
+            key="role_selector",
+            label_visibility="collapsed"
+        )
+        
+        # Get the role name from the display value
+        selected_idx = role_options.index(selected_role_display)
+        selected_role = role_names[selected_idx]
+        
+        # Show role description
+        st.markdown(f"""
+        <div style="background: rgba(41, 181, 232, 0.2); padding: 8px 12px; border-radius: 8px; margin: 8px 0;">
+            <small style="color: #E3F5FC;">{role_descriptions.get(selected_role, '')}</small>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Switch role button
+        if selected_role != current_role:
+            if st.button("🔄 Switch Role", use_container_width=True, key="switch_role_btn"):
+                if switch_role(selected_role):
+                    st.success(f"Switched to {selected_role}")
+                    st.cache_data.clear()
+                    st.experimental_rerun()
+                else:
+                    st.error(f"Cannot switch to {selected_role}. Role may not be granted.")
+        else:
+            st.markdown(f"""
+            <div style="text-align: center; padding: 5px;">
+                <span style="color: #18794E;">✓ Active</span>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        st.divider()
+        
+        # Navigation
         page = st.radio(
             "Navigation",
             ["🤖 Cortex Analyst", "🔮 FERPA Dashboard", "📊 School Analytics", "👥 Student Data", "ℹ️ About"],
@@ -506,15 +596,6 @@ def render_sidebar():
             st.info("Loading stats...")
         
         st.divider()
-        
-        # Current role display
-        session = get_session()
-        try:
-            role_df = session.sql("SELECT CURRENT_ROLE() AS ROLE").to_pandas()
-            current_role = role_df['ROLE'].iloc[0] if not role_df.empty else "Unknown"
-            st.markdown(f"**Current Role:** `{current_role}`")
-        except:
-            pass
         
         st.markdown("""
         <div style="text-align: center; padding-top: 1rem;">
@@ -880,6 +961,75 @@ def render_school_analytics():
 # STUDENT DATA PAGE
 # ============================================================================
 
+def get_role_access_info(role: str) -> dict:
+    """Get information about what each role can see"""
+    role_info = {
+        "DATA_ADMIN": {
+            "icon": "🔧",
+            "color": "#CD2B31",
+            "access": "FULL ACCESS",
+            "description": "Sees all data unmasked including SSN, addresses, and sensitive records",
+            "pii_visible": True,
+            "all_students": True
+        },
+        "DISTRICT_ADMIN": {
+            "icon": "🏛️",
+            "color": "#6E56CF",
+            "access": "DISTRICT WIDE",
+            "description": "Sees all students in district, SSN masked, addresses visible",
+            "pii_visible": "Partial",
+            "all_students": True
+        },
+        "PRINCIPAL": {
+            "icon": "🎓",
+            "color": "#AD5700",
+            "access": "SCHOOL ONLY",
+            "description": "Sees students in their school only, limited PII",
+            "pii_visible": "Limited",
+            "all_students": False
+        },
+        "TEACHER": {
+            "icon": "👨‍🏫",
+            "color": "#29B5E8",
+            "access": "CLASSROOM ONLY",
+            "description": "Sees only assigned students, minimal PII",
+            "pii_visible": False,
+            "all_students": False
+        },
+        "COUNSELOR": {
+            "icon": "💬",
+            "color": "#18794E",
+            "access": "ASSIGNED STUDENTS",
+            "description": "Sees assigned students with some sensitive data access",
+            "pii_visible": "Partial",
+            "all_students": False
+        },
+        "PARENT_PORTAL": {
+            "icon": "👨‍👩‍👧",
+            "color": "#E3F5FC",
+            "access": "OWN CHILDREN",
+            "description": "Sees only their own children's records",
+            "pii_visible": False,
+            "all_students": False
+        },
+        "AI_AGENT": {
+            "icon": "🤖",
+            "color": "#64748B",
+            "access": "AGGREGATES ONLY",
+            "description": "No individual student data, only anonymized aggregates",
+            "pii_visible": False,
+            "all_students": False
+        }
+    }
+    return role_info.get(role, {
+        "icon": "👤",
+        "color": "#64748B",
+        "access": "UNKNOWN",
+        "description": "Role access level unknown",
+        "pii_visible": False,
+        "all_students": False
+    })
+
 def render_student_data():
     """Render student data page with role-based access demo"""
     
@@ -891,22 +1041,54 @@ def render_student_data():
     """, unsafe_allow_html=True)
     
     session = get_session()
+    current_role = get_current_role()
+    role_info = get_role_access_info(current_role)
     
-    # Show current role
-    try:
-        role_df = session.sql("SELECT CURRENT_ROLE() AS ROLE").to_pandas()
-        current_role = role_df['ROLE'].iloc[0] if not role_df.empty else "Unknown"
-        
-        st.info(f"**Viewing as role:** `{current_role}` - Data visibility is controlled by Horizon policies")
-        
-    except:
-        current_role = "Unknown"
+    # =================================================================
+    # ROLE ACCESS INDICATOR
+    # =================================================================
+    st.markdown(f"""
+    <div style="background: linear-gradient(135deg, {role_info['color']}22 0%, {role_info['color']}11 100%); 
+                border-left: 4px solid {role_info['color']}; 
+                padding: 1rem 1.5rem; 
+                border-radius: 8px; 
+                margin-bottom: 1.5rem;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="font-size: 2rem;">{role_info['icon']}</span>
+            <div>
+                <div style="font-weight: 700; font-size: 1.1rem; color: {role_info['color']};">
+                    {current_role} - {role_info['access']}
+                </div>
+                <div style="color: #64748B; font-size: 0.9rem;">
+                    {role_info['description']}
+                </div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Access comparison table
+    with st.expander("📋 View Role Access Comparison", expanded=False):
+        st.markdown("""
+        | Role | Student Scope | Name | SSN | Address | Grades | Health/IEP |
+        |------|--------------|------|-----|---------|--------|------------|
+        | 🔧 DATA_ADMIN | All | ✓ Full | ✓ Full | ✓ Full | ✓ Full | ✓ Full |
+        | 🏛️ DISTRICT_ADMIN | District | ✓ Full | Last 4 | ✓ Full | ✓ Full | Summary |
+        | 🎓 PRINCIPAL | School | ✓ Full | ✗ Masked | ✓ Full | ✓ Full | Summary |
+        | 👨‍🏫 TEACHER | Classroom | ✓ Full | ✗ Masked | ✗ Masked | Own Class | ✗ Masked |
+        | 💬 COUNSELOR | Assigned | ✓ Full | ✗ Masked | ✓ Full | ✓ Full | ✓ Full |
+        | 👨‍👩‍👧 PARENT | Own Child | Own Child | ✗ Masked | Own Only | Own Child | Own Child |
+        | 🤖 AI_AGENT | Aggregates | ✗ Hash | ✗ Masked | ✗ Masked | Aggregate | ✗ Masked |
+        """)
     
     st.divider()
     
     try:
-        # Show aggregate student data (safe for all roles)
+        # =================================================================
+        # AGGREGATE DATA (Safe for all roles)
+        # =================================================================
         st.markdown("### 📈 Enrollment Summary by Grade")
+        st.caption("Aggregate data is visible to all roles")
         
         summary_df = session.sql("""
             SELECT 
@@ -925,26 +1107,126 @@ def render_student_data():
         
         st.divider()
         
-        # Show sample student records (masked based on role)
-        st.markdown("### 👤 Sample Student Records")
-        st.caption("PII fields are masked based on your role and Horizon masking policies")
+        # =================================================================
+        # PII DATA (Varies by role)
+        # =================================================================
+        st.markdown("### 👤 Student Records with PII Fields")
+        st.caption("⚠️ PII fields are masked/filtered based on your current role. Switch roles in the sidebar to see the difference.")
         
-        student_df = session.sql("""
-            SELECT 
-                st.STUDENT_ID,
-                st.DISPLAY_NAME,
-                st.GRADE_LEVEL,
-                s.SCHOOL_NAME,
-                st.ENROLLMENT_STATUS,
-                st.AT_RISK_FLAG
-            FROM CURATED_DEV.CURATED_DIMENSIONS.DIM_STUDENT st
-            LEFT JOIN CURATED_DEV.CURATED_DIMENSIONS.DIM_SCHOOL s ON st.CURRENT_SCHOOL_ID = s.SCHOOL_ID
-            WHERE st.ENROLLMENT_STATUS = 'Active'
-            LIMIT 10
-        """).to_pandas()
+        # Different query based on role capabilities
+        # In production, the masking policies handle this automatically
+        # Here we show different columns to demonstrate what each role sees
+        
+        if current_role in ['DATA_ADMIN', 'PII_VIEWER']:
+            # Full PII access
+            student_df = session.sql("""
+                SELECT 
+                    st.STUDENT_ID,
+                    st.FIRST_NAME,
+                    st.LAST_NAME,
+                    st.SSN,
+                    st.DATE_OF_BIRTH,
+                    st.HOME_ADDRESS_LINE1,
+                    st.CITY,
+                    st.GRADE_LEVEL,
+                    s.SCHOOL_NAME,
+                    st.SPECIAL_EDUCATION,
+                    st.AT_RISK_FLAG
+                FROM CURATED_DEV.CURATED_DIMENSIONS.DIM_STUDENT st
+                LEFT JOIN CURATED_DEV.CURATED_DIMENSIONS.DIM_SCHOOL s ON st.CURRENT_SCHOOL_ID = s.SCHOOL_ID
+                WHERE st.ENROLLMENT_STATUS = 'Active'
+                LIMIT 15
+            """).to_pandas()
+            st.success("🔓 Full PII Access - All fields visible (SSN, DOB, Address)")
+            
+        elif current_role in ['DISTRICT_ADMIN', 'PRINCIPAL', 'COUNSELOR']:
+            # Partial PII access
+            student_df = session.sql("""
+                SELECT 
+                    st.STUDENT_ID,
+                    st.DISPLAY_NAME,
+                    st.GRADE_LEVEL,
+                    st.GRADE_LEVEL_CATEGORY,
+                    s.SCHOOL_NAME,
+                    st.CITY,
+                    st.ETHNICITY,
+                    st.ELL_STATUS,
+                    st.SPECIAL_EDUCATION,
+                    st.AT_RISK_FLAG
+                FROM CURATED_DEV.CURATED_DIMENSIONS.DIM_STUDENT st
+                LEFT JOIN CURATED_DEV.CURATED_DIMENSIONS.DIM_SCHOOL s ON st.CURRENT_SCHOOL_ID = s.SCHOOL_ID
+                WHERE st.ENROLLMENT_STATUS = 'Active'
+                LIMIT 15
+            """).to_pandas()
+            st.warning("🔒 Partial PII Access - SSN masked, limited address info")
+            
+        elif current_role == 'AI_AGENT':
+            # No individual student data
+            student_df = session.sql("""
+                SELECT 
+                    st.STUDENT_ID_HASH AS STUDENT_ID_ANONYMIZED,
+                    st.GRADE_LEVEL_CATEGORY,
+                    st.ETHNICITY,
+                    st.ELL_STATUS,
+                    st.FREE_REDUCED_LUNCH,
+                    st.AT_RISK_FLAG
+                FROM CURATED_DEV.CURATED_DIMENSIONS.DIM_STUDENT st
+                WHERE st.ENROLLMENT_STATUS = 'Active'
+                LIMIT 15
+            """).to_pandas()
+            st.info("🤖 AI Access - Pseudonymized IDs, no names or addresses")
+            
+        else:
+            # Minimal access (Teacher, Parent, etc.)
+            student_df = session.sql("""
+                SELECT 
+                    st.STUDENT_ID,
+                    st.DISPLAY_NAME,
+                    st.GRADE_LEVEL,
+                    s.SCHOOL_NAME,
+                    st.ENROLLMENT_STATUS
+                FROM CURATED_DEV.CURATED_DIMENSIONS.DIM_STUDENT st
+                LEFT JOIN CURATED_DEV.CURATED_DIMENSIONS.DIM_SCHOOL s ON st.CURRENT_SCHOOL_ID = s.SCHOOL_ID
+                WHERE st.ENROLLMENT_STATUS = 'Active'
+                LIMIT 15
+            """).to_pandas()
+            st.error("🔐 Restricted Access - Minimal data visible, PII hidden")
         
         if not student_df.empty:
             st.dataframe(student_df, use_container_width=True)
+        else:
+            st.warning("No student records visible for this role")
+        
+        # =================================================================
+        # ROW COUNT COMPARISON
+        # =================================================================
+        st.divider()
+        st.markdown("### 📊 Data Visibility Metrics")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            try:
+                count_df = session.sql("""
+                    SELECT COUNT(*) AS CNT FROM CURATED_DEV.CURATED_DIMENSIONS.DIM_STUDENT 
+                    WHERE ENROLLMENT_STATUS = 'Active'
+                """).to_pandas()
+                visible_count = count_df['CNT'].iloc[0] if not count_df.empty else 0
+                st.metric("Students Visible", f"{int(visible_count):,}")
+            except:
+                st.metric("Students Visible", "N/A")
+        
+        with col2:
+            pii_status = "Full" if current_role in ['DATA_ADMIN', 'PII_VIEWER'] else (
+                "Partial" if current_role in ['DISTRICT_ADMIN', 'PRINCIPAL', 'COUNSELOR'] else "Masked"
+            )
+            st.metric("PII Access Level", pii_status)
+        
+        with col3:
+            scope = "All" if current_role in ['DATA_ADMIN', 'DISTRICT_ADMIN'] else (
+                "School" if current_role == 'PRINCIPAL' else "Limited"
+            )
+            st.metric("Geographic Scope", scope)
             
     except Exception as e:
         st.error(f"Error loading student data: {str(e)}")
