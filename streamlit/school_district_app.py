@@ -203,8 +203,9 @@ def call_cortex_analyst(prompt: str, semantic_view: str):
             return None, "Cortex Analyst returned an empty response. Try rephrasing your question."
             
     except AttributeError as e:
-        # _rest doesn't exist - try external API approach
-        return call_cortex_analyst_external(prompt, semantic_view)
+        # _rest doesn't exist - this can happen in some SiS environments
+        # Try alternative connection methods
+        return call_cortex_analyst_alternative(prompt, semantic_view)
     except Exception as e:
         error_str = str(e)
         if "404" in error_str or "not found" in error_str.lower():
@@ -216,84 +217,111 @@ def call_cortex_analyst(prompt: str, semantic_view: str):
         else:
             return None, f"Cortex Analyst error: {error_str}"
 
-def call_cortex_analyst_external(prompt: str, semantic_view: str):
-    """Calls Cortex Analyst using external REST API with token."""
+def call_cortex_analyst_alternative(prompt: str, semantic_view: str):
+    """
+    Alternative method to call Cortex Analyst when _rest is not available.
+    Uses the root REST client or constructs the call manually.
+    """
     session = get_session()
     
+    # Method 1: Try _root_rest_client (newer Snowpark versions)
     try:
-        # Try to get host
-        host = None
-        try:
-            host = session.connection.host
-        except:
-            pass
+        if hasattr(session._conn, '_root_rest_client'):
+            rest = session._conn._root_rest_client
+            response = rest.request(
+                url="/api/v2/cortex/analyst/message",
+                method="POST",
+                body={
+                    "messages": [{"role": "user", "content": [{"type": "text", "text": prompt}]}],
+                    "semantic_view": semantic_view
+                },
+                headers={"Content-Type": "application/json"}
+            )
+            if response and 'message' in response:
+                return response, None
+    except:
+        pass
+    
+    # Method 2: Try using the connection's fetch method
+    try:
+        if hasattr(session._conn, '_cursor'):
+            cursor = session._conn._cursor
+            if hasattr(cursor, '_connection') and hasattr(cursor._connection, 'rest'):
+                rest = cursor._connection.rest
+                response = rest.request(
+                    url="/api/v2/cortex/analyst/message",
+                    method="POST",
+                    body={
+                        "messages": [{"role": "user", "content": [{"type": "text", "text": prompt}]}],
+                        "semantic_view": semantic_view
+                    },
+                    headers={"Content-Type": "application/json"}
+                )
+                if response and 'message' in response:
+                    return response, None
+    except:
+        pass
+    
+    # Method 3: Try to get host and token for external call
+    try:
+        # Get account info
+        account_info = session.sql("""
+            SELECT 
+                CURRENT_ACCOUNT_NAME() AS ACCOUNT,
+                CURRENT_REGION() AS REGION
+        """).to_pandas()
         
-        if not host:
-            try:
-                account_df = session.sql("SELECT CURRENT_ACCOUNT_NAME() || '.' || CURRENT_REGION() || '.snowflakecomputing.com' AS HOST").to_pandas()
-                if not account_df.empty:
-                    host = account_df['HOST'].iloc[0].lower().replace('_', '-')
-            except:
-                pass
-        
-        # Try to get token
-        token = None
-        try:
-            token = session._conn._rest._token
-        except:
-            pass
-        
-        if not token:
-            try:
-                token = session._conn._token
-            except:
-                pass
-        
-        if not host or not token:
-            return None, """Could not establish Cortex Analyst connection.
-
-The internal REST client is not available. Please ensure:
-1. You're running this in Streamlit in Snowflake (not locally)
-2. Semantic views exist: SHOW SEMANTIC VIEWS IN DATABASE SEM_DEV;
-3. Cortex is enabled: GRANT DATABASE ROLE SNOWFLAKE.CORTEX_USER TO ROLE DATA_ADMIN;"""
-        
-        url = f"https://{host}/api/v2/cortex/analyst/message"
-        
-        request_body = {
-            "messages": [
-                {"role": "user", "content": [{"type": "text", "text": prompt}]}
-            ],
-            "semantic_view": semantic_view
-        }
-        
-        headers = {
-            "Authorization": f'Snowflake Token="{token}"',
-            "Content-Type": "application/json",
-            "Accept": "application/json"
-        }
-
-        response = requests.post(url, json=request_body, headers=headers)
-        
-        if response.status_code == 200:
-            return response.json(), None
-        elif response.status_code == 401:
-            return None, "Authentication failed. Please refresh the application."
-        elif response.status_code == 404:
-            return None, f"Semantic view '{semantic_view}' not found or Cortex Analyst endpoint not available."
-        else:
-            error_msg = f"Cortex Analyst returned status {response.status_code}"
-            try:
-                error_detail = response.json()
-                if 'message' in error_detail:
-                    error_msg += f": {error_detail['message']}"
-            except:
-                pass
-            return None, error_msg
+        if not account_info.empty:
+            account = account_info['ACCOUNT'].iloc[0].lower()
+            region = account_info['REGION'].iloc[0].lower().replace('_', '-').replace('public.', '')
+            host = f"{account}.{region}.snowflakecomputing.com"
             
-    except requests.exceptions.RequestException as e:
-        return None, f"Network error connecting to Cortex Analyst: {str(e)}"
+            # Try to get token from various places
+            token = None
+            for attr_path in [
+                ('_conn', '_rest', '_token'),
+                ('_conn', '_token'),
+                ('_conn', '_cursor', '_connection', '_token'),
+            ]:
+                try:
+                    obj = session
+                    for attr in attr_path:
+                        obj = getattr(obj, attr)
+                    token = obj
+                    break
+                except:
+                    continue
+            
+            if token:
+                url = f"https://{host}/api/v2/cortex/analyst/message"
+                response = requests.post(
+                    url,
+                    json={
+                        "messages": [{"role": "user", "content": [{"type": "text", "text": prompt}]}],
+                        "semantic_view": semantic_view
+                    },
+                    headers={
+                        "Authorization": f'Snowflake Token="{token}"',
+                        "Content-Type": "application/json",
+                        "Accept": "application/json"
+                    }
+                )
+                if response.status_code == 200:
+                    return response.json(), None
+                else:
+                    return None, f"Cortex Analyst API error (status {response.status_code}). Please try again."
     except Exception as e:
-        return None, f"Error calling Cortex Analyst: {str(e)}"
+        pass
+    
+    # If all methods fail, provide diagnostic info
+    return None, """Could not connect to Cortex Analyst API.
+
+This may be a temporary issue. Please try:
+1. Refresh the application page
+2. Verify the semantic view exists: SHOW SEMANTIC VIEWS IN DATABASE SEM_DEV;
+3. Ensure Cortex is enabled for your account
+
+If the issue persists, the REST client may not be available in this Streamlit environment."""
 
 def execute_sql(sql: str):
     """Execute SQL and return DataFrame"""
