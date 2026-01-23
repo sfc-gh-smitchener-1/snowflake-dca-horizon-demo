@@ -214,52 +214,82 @@ def get_semantic_view_info(semantic_view: str) -> str:
     """Get column information for a semantic view to help with SQL generation."""
     session = get_session()
     
-    # Map semantic views to their underlying tables and columns
+    # Map semantic views to their underlying tables and ACTUAL columns from DIM tables
     view_metadata = {
         'SEM_DEV.SEM_STUDENT.STUDENT_ENROLLMENT_ANALYTICS': {
-            'dimensions': ['STUDENT_ID', 'DISPLAY_NAME', 'GRADE_LEVEL', 'GRADE_LEVEL_CATEGORY', 
-                          'ENROLLMENT_STATUS', 'COHORT_YEAR', 'AGE', 'GENDER', 'ETHNICITY', 
-                          'PRIMARY_LANGUAGE', 'ELL_STATUS', 'SPECIAL_EDUCATION', 'SECTION_504',
-                          'GIFTED_TALENTED', 'FREE_REDUCED_LUNCH', 'HOMELESS_STATUS', 'AT_RISK_FLAG',
-                          'PROGRAM_COUNT', 'SCHOOL_ID', 'SCHOOL_NAME', 'SCHOOL_TYPE', 'IS_TITLE_I',
-                          'IS_MAGNET', 'IS_CHARTER', 'CITY', 'COUNTY', 'ACCOUNTABILITY_RATING',
-                          'CAPACITY_STATUS', 'DISTRICT_ID', 'DISTRICT_NAME', 'SUPERINTENDENT_NAME'],
-            'metrics': ['student_count', 'active_students', 'at_risk_count', 'ell_count', 
-                       'sped_count', 'frl_count', 'homeless_count', 'gifted_count',
-                       'avg_age', 'avg_program_count']
+            'columns': [
+                'STUDENT_KEY', 'STUDENT_ID', 'STUDENT_ID_HASH', 'STUDENT_NAME_HASH',
+                'FIRST_NAME', 'MIDDLE_NAME', 'LAST_NAME', 'PREFERRED_NAME', 'DISPLAY_NAME',
+                'SSN', 'STATE_ID', 'DATE_OF_BIRTH', 'AGE',
+                'GENDER', 'ETHNICITY', 'RACE', 'PRIMARY_LANGUAGE', 'ELL_STATUS',
+                'HOME_ADDRESS_LINE1', 'HOME_ADDRESS_LINE2', 'CITY', 'STATE', 'ZIP_CODE', 'COUNTY',
+                'CURRENT_SCHOOL_ID', 'CURRENT_DISTRICT_ID', 'GRADE_LEVEL', 'HOMEROOM',
+                'GRADE_LEVEL_CATEGORY', 'GRADE_LEVEL_NUM',
+                'ENROLLMENT_STATUS', 'ENROLLMENT_DATE', 'EXPECTED_GRADUATION_YEAR', 'COHORT_YEAR',
+                'SPECIAL_EDUCATION', 'SECTION_504', 'GIFTED_TALENTED', 'FREE_REDUCED_LUNCH', 'HOMELESS_STATUS',
+                'AT_RISK_FLAG', 'PROGRAM_COUNT'
+            ],
+            'example_queries': [
+                "SELECT GRADE_LEVEL, COUNT(*) as student_count FROM table GROUP BY GRADE_LEVEL",
+                "SELECT ETHNICITY, COUNT(*) as count FROM table WHERE ENROLLMENT_STATUS = 'Active' GROUP BY ETHNICITY",
+                "SELECT CURRENT_DISTRICT_ID, COUNT(*) as students FROM table GROUP BY CURRENT_DISTRICT_ID"
+            ]
         },
         'SEM_DEV.SEM_STUDENT.STUDENT_DEMOGRAPHICS_ANALYTICS': {
-            'dimensions': ['STUDENT_ID', 'GRADE_LEVEL', 'GRADE_LEVEL_CATEGORY', 'GENDER', 
-                          'ETHNICITY', 'PRIMARY_LANGUAGE', 'ELL_STATUS', 'SCHOOL_ID', 
-                          'SCHOOL_NAME', 'SCHOOL_TYPE', 'DISTRICT_ID', 'DISTRICT_NAME'],
-            'metrics': ['student_count', 'ell_count', 'ell_rate']
+            'columns': [
+                'STUDENT_KEY', 'STUDENT_ID', 'DISPLAY_NAME', 'GRADE_LEVEL', 'GRADE_LEVEL_CATEGORY',
+                'GENDER', 'ETHNICITY', 'RACE', 'PRIMARY_LANGUAGE', 'ELL_STATUS',
+                'CURRENT_SCHOOL_ID', 'CURRENT_DISTRICT_ID', 'ENROLLMENT_STATUS'
+            ],
+            'example_queries': [
+                "SELECT ETHNICITY, COUNT(*) as count FROM table GROUP BY ETHNICITY",
+                "SELECT GENDER, COUNT(*) as count FROM table GROUP BY GENDER"
+            ]
         },
         'SEM_DEV.SEM_SCHOOL.SCHOOL_PERFORMANCE_ANALYTICS': {
-            'dimensions': ['SCHOOL_ID', 'SCHOOL_NAME', 'SCHOOL_TYPE', 'IS_TITLE_I', 'IS_MAGNET',
-                          'IS_CHARTER', 'CITY', 'COUNTY', 'ACCOUNTABILITY_RATING', 'CAPACITY_STATUS',
-                          'DISTRICT_ID', 'DISTRICT_NAME'],
-            'metrics': ['school_count', 'student_count', 'staff_count', 'teacher_count',
-                       'capacity', 'enrollment', 'utilization_rate', 'student_teacher_ratio']
+            'columns': [
+                'SCHOOL_ID', 'SCHOOL_NAME', 'SCHOOL_TYPE', 'DISTRICT_ID',
+                'IS_TITLE_I', 'IS_MAGNET', 'IS_CHARTER',
+                'CITY', 'COUNTY', 'STATE', 'ZIP_CODE',
+                'BUILDING_CAPACITY', 'CURRENT_ENROLLMENT', 'CAPACITY_UTILIZATION_PCT', 'CAPACITY_STATUS',
+                'STAFF_COUNT', 'TEACHER_COUNT', 'STUDENT_TEACHER_RATIO',
+                'ACCOUNTABILITY_RATING', 'GRADUATION_RATE', 'ATTENDANCE_RATE'
+            ],
+            'example_queries': [
+                "SELECT SCHOOL_TYPE, COUNT(*) as count FROM table GROUP BY SCHOOL_TYPE",
+                "SELECT SCHOOL_NAME, CURRENT_ENROLLMENT FROM table ORDER BY CURRENT_ENROLLMENT DESC LIMIT 10"
+            ]
         },
         'SEM_DEV.SEM_STAFF.STAFF_WORKFORCE_ANALYTICS': {
-            'dimensions': ['STAFF_ID', 'DISPLAY_NAME', 'POSITION_TITLE', 'DEPARTMENT', 
-                          'EMPLOYMENT_STATUS', 'EMPLOYMENT_TYPE', 'TENURE_CATEGORY',
-                          'IS_CERTIFIED', 'IS_HIGHLY_QUALIFIED', 'SCHOOL_ID', 'SCHOOL_NAME',
-                          'DISTRICT_ID', 'DISTRICT_NAME'],
-            'metrics': ['staff_count', 'active_staff', 'certified_count', 'highly_qualified_count',
-                       'avg_years_experience', 'avg_tenure_years']
+            'columns': [
+                'STAFF_KEY', 'STAFF_ID', 'FIRST_NAME', 'LAST_NAME', 'DISPLAY_NAME',
+                'POSITION_TITLE', 'DEPARTMENT', 'PRIMARY_SCHOOL_ID', 'PRIMARY_DISTRICT_ID',
+                'EMPLOYMENT_STATUS', 'EMPLOYMENT_TYPE', 'HIRE_DATE', 'TERMINATION_DATE',
+                'YEARS_EXPERIENCE', 'TENURE_YEARS', 'TENURE_CATEGORY',
+                'SALARY', 'IS_CERTIFIED', 'IS_HIGHLY_QUALIFIED', 'CERTIFICATIONS'
+            ],
+            'example_queries': [
+                "SELECT DEPARTMENT, COUNT(*) as count FROM table GROUP BY DEPARTMENT",
+                "SELECT POSITION_TITLE, AVG(SALARY) as avg_salary FROM table GROUP BY POSITION_TITLE"
+            ]
         },
         'SEM_DEV.SEM_GOVERNANCE.GOVERNANCE_ANALYTICS': {
-            'dimensions': ['CONTRACT_ID', 'CONTRACT_NAME', 'STATUS', 'OWNER', 'DOMAIN',
-                          'DATA_SOURCE', 'UPDATE_FREQUENCY'],
-            'metrics': ['contract_count', 'active_contracts', 'rule_count', 'avg_quality_score']
+            'columns': [
+                'CONTRACT_ID', 'CONTRACT_NAME', 'VERSION', 'STATUS', 'OWNER',
+                'DOMAIN', 'DATA_SOURCE', 'UPDATE_FREQUENCY', 'CREATED_AT', 'UPDATED_AT'
+            ],
+            'example_queries': [
+                "SELECT STATUS, COUNT(*) as count FROM table GROUP BY STATUS"
+            ]
         }
     }
     
     if semantic_view in view_metadata:
         meta = view_metadata[semantic_view]
-        return f"""DIMENSIONS: {', '.join(meta['dimensions'])}
-METRICS: {', '.join(meta['metrics'])}"""
+        info = f"COLUMNS: {', '.join(meta['columns'])}"
+        if 'example_queries' in meta:
+            info += f"\n\nEXAMPLE QUERY PATTERNS:\n" + "\n".join(meta['example_queries'])
+        return info
     
     # Default - try to get from the view itself
     try:
@@ -305,24 +335,22 @@ def call_cortex_complete_fallback(prompt: str, semantic_view: str):
                 'llama3.1-70b',
                 'You are a SQL expert. Generate a Snowflake SQL query to answer the user question.
 
-IMPORTANT: Query the underlying table directly, NOT the semantic view.
+TABLE TO QUERY: {escaped_table}
 
-UNDERLYING TABLE: {escaped_table}
-
-AVAILABLE COLUMNS (use exact names):
 {escaped_info}
 
-RULES:
-1. Query {escaped_table} directly using standard SQL
-2. Use exact column names as listed above
-3. For counts, use COUNT(*) or COUNT(column_name)
-4. For aggregations, use appropriate GROUP BY
-5. Return ONLY the SQL query, no explanation
-6. Do not use SEMANTIC_VIEW() function
+CRITICAL RULES:
+1. Use ONLY the exact column names listed above - do NOT invent column names
+2. Use {escaped_table} as the table name
+3. For district questions, use CURRENT_DISTRICT_ID (not DISTRICT_ID)
+4. For school questions, use CURRENT_SCHOOL_ID (not SCHOOL_ID) when querying students
+5. For counts use COUNT(*), for averages use AVG()
+6. Include GROUP BY when using aggregates with non-aggregated columns
+7. Return ONLY the SQL query with no explanation, markdown, or comments
 
 USER QUESTION: {escaped_prompt}
 
-SQL Query:'
+SQL:'
             ) AS response
         """).to_pandas()
         
