@@ -256,6 +256,7 @@ def call_cortex_complete_fallback(prompt: str, semantic_view: str):
 
 SEMANTIC VIEW: {escaped_view}
 
+AVAILABLE COLUMNS (USE EXACT NAMES - do not modify or prefix these):
 {escaped_info}
 
 USE THIS EXACT PATTERN - the SEMANTIC_VIEW() function:
@@ -265,12 +266,14 @@ SELECT * FROM SEMANTIC_VIEW(
   METRICS metric1, metric2
 )
 
-RULES:
+CRITICAL RULES:
 1. Always use SEMANTIC_VIEW() function - this is the ONLY correct way
-2. List dimensions after DIMENSIONS keyword (comma separated)
-3. List metrics after METRICS keyword (comma separated)
-4. Use exact names from the lists above
-5. Return ONLY the SQL query
+2. List dimensions after DIMENSIONS keyword (comma separated, no quotes)
+3. List metrics after METRICS keyword (comma separated, no quotes)
+4. USE EXACT COLUMN NAMES from the lists above - do NOT rename, prefix, or modify them
+5. For example: use AGE not STUDENT_AGE, use GRADE_LEVEL not STUDENT_GRADE_LEVEL
+6. Return ONLY the SQL query, no explanation
+7. Do not add table prefixes to column names inside SEMANTIC_VIEW()
 
 Question: {escaped_prompt}
 
