@@ -840,17 +840,18 @@ def render_school_analytics():
     try:
         schools_df = session.sql("""
             SELECT 
-                SCHOOL_NAME,
-                SCHOOL_TYPE,
-                DISTRICT_NAME,
-                BUILDING_CAPACITY,
-                CURRENT_ENROLLMENT,
-                CAPACITY_UTILIZATION_PCT,
-                CAPACITY_STATUS,
-                STUDENT_TEACHER_RATIO,
-                ACCOUNTABILITY_RATING
-            FROM CURATED_DEV.CURATED_DIMENSIONS.DIM_SCHOOL
-            ORDER BY CURRENT_ENROLLMENT DESC
+                s.SCHOOL_NAME,
+                s.SCHOOL_TYPE,
+                d.DISTRICT_NAME,
+                s.BUILDING_CAPACITY,
+                s.CURRENT_ENROLLMENT,
+                s.CAPACITY_UTILIZATION_PCT,
+                s.CAPACITY_STATUS,
+                s.STUDENT_TEACHER_RATIO,
+                s.ACCOUNTABILITY_RATING
+            FROM CURATED_DEV.CURATED_DIMENSIONS.DIM_SCHOOL s
+            LEFT JOIN CURATED_DEV.CURATED_DIMENSIONS.DIM_DISTRICT d ON s.DISTRICT_ID = d.DISTRICT_ID
+            ORDER BY s.CURRENT_ENROLLMENT DESC
             LIMIT 50
         """).to_pandas()
         
@@ -930,14 +931,15 @@ def render_student_data():
         
         student_df = session.sql("""
             SELECT 
-                STUDENT_ID,
-                DISPLAY_NAME,
-                GRADE_LEVEL,
-                SCHOOL_NAME,
-                ENROLLMENT_STATUS,
-                AT_RISK_FLAG
-            FROM CURATED_DEV.CURATED_DIMENSIONS.DIM_STUDENT
-            WHERE ENROLLMENT_STATUS = 'Active'
+                st.STUDENT_ID,
+                st.DISPLAY_NAME,
+                st.GRADE_LEVEL,
+                s.SCHOOL_NAME,
+                st.ENROLLMENT_STATUS,
+                st.AT_RISK_FLAG
+            FROM CURATED_DEV.CURATED_DIMENSIONS.DIM_STUDENT st
+            LEFT JOIN CURATED_DEV.CURATED_DIMENSIONS.DIM_SCHOOL s ON st.CURRENT_SCHOOL_ID = s.SCHOOL_ID
+            WHERE st.ENROLLMENT_STATUS = 'Active'
             LIMIT 10
         """).to_pandas()
         
