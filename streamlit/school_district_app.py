@@ -1,22 +1,21 @@
-"""
-Massachusetts School District Horizon Demo
-Streamlit in Snowflake Application
-
-Features:
-- Cortex Analyst natural language queries
-- Horizon governance dashboard
-- Role-based data visualization
-- FERPA compliance monitoring
-"""
+# ============================================================================
+# MASSACHUSETTS SCHOOL DISTRICT - Streamlit in Snowflake Application
+# ============================================================================
+# A comprehensive dashboard for:
+#   1. Snowflake Cortex Analyst - Natural language queries on semantic views
+#   2. Snowflake Horizon - FERPA governance & compliance dashboard
+#
+# Uses the Cortex Analyst API for native semantic view querying
+# ============================================================================
 
 import streamlit as st
 import pandas as pd
-from snowflake.snowpark.context import get_active_session
+import requests
 import json
-from datetime import datetime
+from snowflake.snowpark.context import get_active_session
 
 # ============================================================================
-# Configuration
+# PAGE CONFIGURATION
 # ============================================================================
 
 st.set_page_config(
@@ -26,59 +25,121 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for branding
+# ============================================================================
+# SNOWFLAKE EDUCATION THEME STYLING
+# ============================================================================
+
+SNOWFLAKE_BLUE = "#29B5E8"
+EDUCATION_PURPLE = "#6E56CF"
+SUCCESS_GREEN = "#18794E"
+WARNING_AMBER = "#AD5700"
+ERROR_RED = "#CD2B31"
+
 st.markdown("""
 <style>
-    /* Snowflake blue gradient header */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    
+    .stApp {
+        background: linear-gradient(180deg, #FFFFFF 0%, #F0F9FF 100%);
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #11567F 0%, #0D3D5C 100%);
+    }
+    
+    [data-testid="stSidebar"] * {
+        color: white !important;
+    }
+    
     .main-header {
-        background: linear-gradient(90deg, #29B5E8 0%, #7C3AED 100%);
-        padding: 20px;
-        border-radius: 10px;
+        background: linear-gradient(135deg, #29B5E8 0%, #11567F 100%);
+        padding: 1.5rem 2rem;
+        border-radius: 16px;
+        margin-bottom: 1.5rem;
         color: white;
-        margin-bottom: 20px;
+        box-shadow: 0 4px 20px rgba(41, 181, 232, 0.3);
     }
     
-    /* KPI cards */
-    .kpi-card {
+    .main-header h1 { margin: 0; font-size: 1.75rem; font-weight: 700; }
+    .main-header p { margin: 0.5rem 0 0 0; opacity: 0.9; font-size: 0.95rem; }
+    
+    .ferpa-header {
+        background: linear-gradient(135deg, #6E56CF 0%, #29B5E8 100%);
+        padding: 1.5rem 2rem;
+        border-radius: 16px;
+        margin-bottom: 1.5rem;
+        color: white;
+        box-shadow: 0 4px 20px rgba(110, 86, 207, 0.3);
+    }
+    
+    .ferpa-header h1 { margin: 0; font-size: 1.75rem; font-weight: 700; }
+    .ferpa-header p { margin: 0.5rem 0 0 0; opacity: 0.9; }
+    
+    .metric-card {
         background: white;
-        border-radius: 10px;
-        padding: 20px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        text-align: center;
+        border-radius: 12px;
+        padding: 1.25rem;
+        border-left: 4px solid #29B5E8;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        margin-bottom: 0.5rem;
     }
     
-    .kpi-value {
-        font-size: 2.5rem;
-        font-weight: bold;
-        color: #29B5E8;
+    .metric-card.success { border-left-color: #18794E; }
+    .metric-card.warning { border-left-color: #AD5700; }
+    .metric-card.error { border-left-color: #CD2B31; }
+    
+    .metric-card strong {
+        color: #64748B;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
     }
     
-    .kpi-label {
-        font-size: 0.9rem;
-        color: #666;
+    .metric-card h2 {
+        color: #0F172A !important;
+        margin: 0.5rem 0 0 0;
+        font-size: 1.75rem;
+        font-weight: 700;
     }
     
-    /* Stoplight indicators */
-    .stoplight-green { color: #22c55e; }
-    .stoplight-yellow { color: #eab308; }
-    .stoplight-red { color: #ef4444; }
-    
-    /* Chat bubbles */
-    .user-message {
-        background: #e3f2fd;
-        padding: 10px 15px;
-        border-radius: 15px;
-        margin: 10px 0;
+    .stoplight {
+        display: inline-block;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        margin-right: 8px;
+        vertical-align: middle;
     }
     
-    .assistant-message {
-        background: #f3e5f5;
-        padding: 10px 15px;
-        border-radius: 15px;
-        margin: 10px 0;
+    .stoplight.green { background: #18794E; box-shadow: 0 0 8px rgba(24,121,78,0.5); }
+    .stoplight.yellow { background: #AD5700; box-shadow: 0 0 8px rgba(173,87,0,0.5); }
+    .stoplight.red { background: #CD2B31; box-shadow: 0 0 8px rgba(205,43,49,0.5); }
+    
+    .chat-bubble {
+        padding: 15px;
+        border-radius: 12px;
+        margin-bottom: 10px;
     }
     
-    /* Role badge */
+    .user-bubble {
+        background: #E3F5FC;
+        border-left: 5px solid #29B5E8;
+    }
+    
+    .assistant-bubble {
+        background: #F1F5F9;
+        border-left: 5px solid #6E56CF;
+    }
+    
+    .stButton > button {
+        background: linear-gradient(135deg, #29B5E8 0%, #11567F 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-weight: 500;
+    }
+    
     .role-badge {
         display: inline-block;
         padding: 5px 15px;
@@ -90,12 +151,14 @@ st.markdown("""
     .role-admin { background: #fee2e2; color: #dc2626; }
     .role-principal { background: #fef3c7; color: #d97706; }
     .role-teacher { background: #dbeafe; color: #2563eb; }
-    .role-parent { background: #d1fae5; color: #059669; }
+    
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
 # ============================================================================
-# Session and Data Access
+# SESSION & CORTEX ANALYST API
 # ============================================================================
 
 @st.cache_resource
@@ -103,725 +166,867 @@ def get_session():
     """Get Snowflake session"""
     return get_active_session()
 
-session = get_session()
-
-def run_query(sql: str) -> pd.DataFrame:
-    """Execute SQL and return DataFrame"""
+def call_cortex_analyst(prompt: str, semantic_view: str):
+    """Calls the Cortex Analyst API using the Snowflake session."""
+    session = get_session()
+    
     try:
-        return session.sql(sql).to_pandas()
+        rest = session._conn._rest
+        endpoint = "/api/v2/cortex/analyst/message"
+        
+        request_body = {
+            "messages": [
+                {"role": "user", "content": [{"type": "text", "text": prompt}]}
+            ],
+            "semantic_view": semantic_view
+        }
+        
+        response = rest.request(
+            url=endpoint,
+            method="POST",
+            body=request_body,
+            headers={"Content-Type": "application/json"}
+        )
+        
+        if response and 'message' in response:
+            return response, None
+        else:
+            return call_cortex_complete_fallback(prompt, semantic_view)
+            
+    except AttributeError:
+        return call_cortex_analyst_external(prompt, semantic_view)
     except Exception as e:
-        st.error(f"Query error: {str(e)}")
-        return pd.DataFrame()
+        return call_cortex_complete_fallback(prompt, semantic_view)
 
-def get_current_role() -> str:
-    """Get current user role"""
-    result = run_query("SELECT CURRENT_ROLE() AS role")
-    return result['ROLE'].iloc[0] if not result.empty else "UNKNOWN"
+def call_cortex_analyst_external(prompt: str, semantic_view: str):
+    """Calls Cortex Analyst using external REST API with token."""
+    session = get_session()
+    
+    try:
+        host = session.connection.host if hasattr(session, 'connection') else None
+        token = None
+        try:
+            token = session._conn._rest._token
+        except:
+            pass
+        
+        if not host or not token:
+            return call_cortex_complete_fallback(prompt, semantic_view)
+        
+        url = f"https://{host}/api/v2/cortex/analyst/message"
+        
+        request_body = {
+            "messages": [
+                {"role": "user", "content": [{"type": "text", "text": prompt}]}
+            ],
+            "semantic_view": semantic_view
+        }
+        
+        headers = {
+            "Authorization": f'Snowflake Token="{token}"',
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+        }
+
+        response = requests.post(url, json=request_body, headers=headers)
+        
+        if response.status_code == 200:
+            return response.json(), None
+        else:
+            return call_cortex_complete_fallback(prompt, semantic_view)
+            
+    except Exception as e:
+        return call_cortex_complete_fallback(prompt, semantic_view)
+
+def call_cortex_complete_fallback(prompt: str, semantic_view: str):
+    """Fallback using CORTEX.COMPLETE to generate SQL for semantic views."""
+    session = get_session()
+    
+    try:
+        view_info = get_semantic_view_info(semantic_view)
+        
+        escaped_prompt = prompt.replace("'", "''")
+        escaped_view = semantic_view.replace("'", "''")
+        escaped_info = view_info.replace("'", "''")
+        
+        result = session.sql(f"""
+            SELECT SNOWFLAKE.CORTEX.COMPLETE(
+                'llama3.1-70b',
+                'Generate a SQL query using the SEMANTIC_VIEW() function.
+
+SEMANTIC VIEW: {escaped_view}
+
+{escaped_info}
+
+USE THIS EXACT PATTERN - the SEMANTIC_VIEW() function:
+SELECT * FROM SEMANTIC_VIEW(
+  {escaped_view}
+  DIMENSIONS dimension1, dimension2
+  METRICS metric1, metric2
+)
+
+RULES:
+1. Always use SEMANTIC_VIEW() function - this is the ONLY correct way
+2. List dimensions after DIMENSIONS keyword (comma separated)
+3. List metrics after METRICS keyword (comma separated)
+4. Use exact names from the lists above
+5. Return ONLY the SQL query
+
+Question: {escaped_prompt}
+
+SQL:'
+            ) AS response
+        """).to_pandas()
+        
+        if not result.empty:
+            sql = result['RESPONSE'].iloc[0].strip()
+            
+            if '```' in sql:
+                parts = sql.split('```')
+                for part in parts:
+                    if 'SELECT' in part.upper():
+                        sql = part.strip()
+                        if sql.lower().startswith('sql'):
+                            sql = sql[3:].strip()
+                        break
+            
+            if ';' in sql:
+                sql = sql.split(';')[0] + ';'
+            
+            return {
+                "message": {
+                    "content": [
+                        {"type": "text", "text": "Here's the query for your question:"},
+                        {"type": "sql", "statement": sql}
+                    ]
+                }
+            }, None
+        else:
+            return None, "No response generated"
+            
+    except Exception as e:
+        return None, f"Error: {str(e)}"
+
+def get_semantic_view_info(semantic_view: str) -> str:
+    """Get metadata about a semantic view for LLM context."""
+    session = get_session()
+    
+    info_parts = []
+    
+    try:
+        dims = session.sql(f"SHOW SEMANTIC DIMENSIONS IN SEMANTIC VIEW {semantic_view}").to_pandas()
+        if not dims.empty and 'name' in dims.columns:
+            dim_names = dims['name'].tolist()
+            info_parts.append(f"DIMENSIONS: {', '.join(dim_names)}")
+    except:
+        pass
+    
+    try:
+        metrics = session.sql(f"SHOW SEMANTIC METRICS IN SEMANTIC VIEW {semantic_view}").to_pandas()
+        if not metrics.empty and 'name' in metrics.columns:
+            metric_names = metrics['name'].tolist()
+            info_parts.append(f"METRICS: {', '.join(metric_names)}")
+    except:
+        pass
+    
+    if info_parts:
+        return "\n".join(info_parts)
+    
+    # Fallback hardcoded info for education semantic views
+    view_contexts = {
+        'STUDENT_ENROLLMENT_ANALYTICS': """DIMENSIONS: STUDENT_ID, DISPLAY_NAME, GRADE_LEVEL, GRADE_LEVEL_CATEGORY, ENROLLMENT_STATUS, COHORT_YEAR, AGE, GENDER, ETHNICITY, PRIMARY_LANGUAGE, ELL_STATUS, SPECIAL_EDUCATION, SECTION_504, GIFTED_TALENTED, FREE_REDUCED_LUNCH, HOMELESS_STATUS, AT_RISK_FLAG, PROGRAM_COUNT, SCHOOL_ID, SCHOOL_NAME, SCHOOL_TYPE, IS_TITLE_I, IS_MAGNET, IS_CHARTER, CITY, COUNTY, ACCOUNTABILITY_RATING, CAPACITY_STATUS, DISTRICT_ID, DISTRICT_NAME, SUPERINTENDENT_NAME
+METRICS: student_count, active_students, at_risk_count, ell_count, sped_count, section504_count, gifted_count, frl_count, homeless_count, school_count, title_i_count, total_capacity, total_enrollment, ell_rate, sped_rate, frl_rate, at_risk_rate, capacity_utilization""",
+        'STUDENT_DEMOGRAPHICS_ANALYTICS': """DIMENSIONS: GRADE_LEVEL, GRADE_LEVEL_CATEGORY, GENDER, ETHNICITY, RACE, PRIMARY_LANGUAGE, ELL_STATUS, FREE_REDUCED_LUNCH, COUNTY, SCHOOL_NAME, SCHOOL_TYPE
+METRICS: student_count, ell_count, frl_count, ell_rate, frl_rate""",
+        'SCHOOL_PERFORMANCE_ANALYTICS': """DIMENSIONS: SCHOOL_ID, SCHOOL_NAME, SCHOOL_TYPE, GRADE_LEVELS_SERVED, IS_TITLE_I, IS_MAGNET, IS_CHARTER, CITY, COUNTY, ACCOUNTABILITY_RATING, CAPACITY_STATUS, PRINCIPAL_NAME, DISTRICT_NAME, SUPERINTENDENT_NAME
+METRICS: school_count, total_capacity, total_enrollment, total_staff, total_teachers, avg_graduation_rate, avg_attendance_rate, total_students, ell_students, sped_students, frl_students, capacity_utilization, student_teacher_ratio, avg_capacity_utilization""",
+        'STAFF_WORKFORCE_ANALYTICS': """DIMENSIONS: STAFF_ID, DISPLAY_NAME, EMPLOYEE_TYPE, POSITION_TITLE, ROLE_CATEGORY, DEPARTMENT, EMPLOYMENT_STATUS, HIGHEST_DEGREE, HIGHLY_QUALIFIED, LICENSE_STATUS, SALARY_BAND, IS_TEACHER, IS_ADMINISTRATOR, SCHOOL_NAME, SCHOOL_TYPE, COUNTY
+METRICS: staff_count, active_staff, teacher_count, admin_count, total_experience_years, avg_experience, avg_tenure, highly_qualified_count, avg_summary_experience, total_hq_rate, highly_qualified_rate""",
+        'ENROLLMENT_SUMMARY_ANALYTICS': """DIMENSIONS: GRADE_LEVEL, SCHOOL_ID, SCHOOL_NAME, SCHOOL_TYPE, COUNTY, DISTRICT_ID, DISTRICT_NAME
+METRICS: student_count, active_count, ell_count, sped_count, frl_count, homeless_count, ell_rate, sped_rate, frl_rate""",
+        'GOVERNANCE_ANALYTICS': """DIMENSIONS: CONTRACT_ID, VERSION, STATUS, CONTRACT_TYPE, PRODUCER_SYSTEM, PRODUCER_TEAM, GOVERNANCE_CLASSIFICATION, HEALTH_STATUS, RULE_NAME, RULE_TYPE, SEVERITY, ALERT_TYPE
+METRICS: contract_count, active_contracts, healthy_contracts, warning_contracts, critical_contracts, consumer_count, active_consumers, rule_count, active_rules, alert_count, open_alerts, critical_alerts, avg_consumers_per_contract, avg_rules_per_contract, health_score"""
+    }
+    
+    for key, ctx in view_contexts.items():
+        if key in semantic_view.upper():
+            return ctx
+    
+    return "Query this semantic view to analyze education data."
+
+def execute_sql(sql: str):
+    """Execute SQL and return DataFrame"""
+    session = get_session()
+    try:
+        return session.sql(sql).to_pandas(), None
+    except Exception as e:
+        return None, str(e)
 
 # ============================================================================
-# Sidebar Navigation
+# DATA FETCHING FOR DASHBOARD
+# ============================================================================
+
+@st.cache_data(ttl=60)
+def get_dashboard_kpis():
+    """Fetch dashboard KPIs"""
+    session = get_session()
+    try:
+        df = session.sql("""
+            SELECT 
+                (SELECT COUNT(*) FROM CURATED_DEV.CURATED_DIMENSIONS.DIM_STUDENT WHERE ENROLLMENT_STATUS = 'Active') AS TOTAL_STUDENTS,
+                (SELECT COUNT(*) FROM CURATED_DEV.CURATED_DIMENSIONS.DIM_SCHOOL) AS TOTAL_SCHOOLS,
+                (SELECT COUNT(*) FROM CURATED_DEV.CURATED_DIMENSIONS.DIM_STAFF WHERE EMPLOYMENT_STATUS = 'Active') AS TOTAL_STAFF,
+                (SELECT COUNT(DISTINCT DISTRICT_ID) FROM CURATED_DEV.CURATED_DIMENSIONS.DIM_DISTRICT) AS TOTAL_DISTRICTS,
+                (SELECT COUNT(*) FROM GOVERNANCE.CONTRACT_REGISTRY.CONTRACTS WHERE STATUS = 'active') AS ACTIVE_CONTRACTS,
+                (SELECT COUNT(*) FROM GOVERNANCE.CONTRACT_REGISTRY.ALERTS WHERE STATUS = 'OPEN') AS OPEN_ALERTS
+        """).to_pandas()
+        return df
+    except:
+        return pd.DataFrame()
+
+@st.cache_data(ttl=60)
+def get_enrollment_by_school_type():
+    """Get enrollment breakdown by school type"""
+    session = get_session()
+    try:
+        df = session.sql("""
+            SELECT 
+                s.SCHOOL_TYPE,
+                COUNT(DISTINCT st.STUDENT_KEY) AS STUDENT_COUNT
+            FROM CURATED_DEV.CURATED_DIMENSIONS.DIM_STUDENT st
+            JOIN CURATED_DEV.CURATED_DIMENSIONS.DIM_SCHOOL s ON st.CURRENT_SCHOOL_ID = s.SCHOOL_ID
+            WHERE st.ENROLLMENT_STATUS = 'Active'
+            GROUP BY s.SCHOOL_TYPE
+            ORDER BY STUDENT_COUNT DESC
+        """).to_pandas()
+        return df
+    except:
+        return pd.DataFrame()
+
+@st.cache_data(ttl=60)
+def get_program_participation():
+    """Get special program participation rates"""
+    session = get_session()
+    try:
+        df = session.sql("""
+            SELECT 
+                SUM(CASE WHEN ELL_STATUS THEN 1 ELSE 0 END) AS ELL_COUNT,
+                SUM(CASE WHEN SPECIAL_EDUCATION THEN 1 ELSE 0 END) AS SPED_COUNT,
+                SUM(CASE WHEN SECTION_504 THEN 1 ELSE 0 END) AS SECTION_504_COUNT,
+                SUM(CASE WHEN GIFTED_TALENTED THEN 1 ELSE 0 END) AS GIFTED_COUNT,
+                SUM(CASE WHEN FREE_REDUCED_LUNCH IN ('Free', 'Reduced') THEN 1 ELSE 0 END) AS FRL_COUNT,
+                COUNT(*) AS TOTAL
+            FROM CURATED_DEV.CURATED_DIMENSIONS.DIM_STUDENT
+            WHERE ENROLLMENT_STATUS = 'Active'
+        """).to_pandas()
+        return df
+    except:
+        return pd.DataFrame()
+
+@st.cache_data(ttl=300)
+def get_semantic_views():
+    """List available semantic views"""
+    session = get_session()
+    try:
+        df = session.sql("SHOW SEMANTIC VIEWS IN DATABASE SEM_DEV").to_pandas()
+        if not df.empty and 'name' in df.columns:
+            views = []
+            for _, row in df.iterrows():
+                schema = row.get('schema_name', '')
+                name = row.get('name', '')
+                if schema and name:
+                    views.append(f"SEM_DEV.{schema}.{name}")
+            return views if views else get_default_semantic_views()
+        return get_default_semantic_views()
+    except:
+        return get_default_semantic_views()
+
+def get_default_semantic_views():
+    """Return default list of semantic views"""
+    return [
+        # Student Analytics
+        'SEM_DEV.SEM_STUDENT.STUDENT_ENROLLMENT_ANALYTICS',
+        'SEM_DEV.SEM_STUDENT.STUDENT_DEMOGRAPHICS_ANALYTICS',
+        'SEM_DEV.SEM_STUDENT.ENROLLMENT_SUMMARY_ANALYTICS',
+        # School Analytics
+        'SEM_DEV.SEM_SCHOOL.SCHOOL_PERFORMANCE_ANALYTICS',
+        # Staff Analytics
+        'SEM_DEV.SEM_STAFF.STAFF_WORKFORCE_ANALYTICS',
+        # Governance Analytics
+        'SEM_DEV.SEM_GOVERNANCE.GOVERNANCE_ANALYTICS',
+        'SEM_DEV.SEM_GOVERNANCE.DATA_QUALITY_ANALYTICS',
+        'SEM_DEV.SEM_GOVERNANCE.FERPA_COMPLIANCE_ANALYTICS'
+    ]
+
+# ============================================================================
+# SIDEBAR
 # ============================================================================
 
 def render_sidebar():
-    """Render sidebar with navigation and quick stats"""
-    
-    st.sidebar.markdown("""
-    <div style="text-align: center; padding: 20px 0;">
-        <h1 style="color: #29B5E8;">🎓 MA Schools</h1>
-        <p style="color: #666; font-size: 0.9rem;">Horizon Governance Demo</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Current role display
-    current_role = get_current_role()
-    role_class = "role-admin" if "ADMIN" in current_role else \
-                 "role-principal" if "PRINCIPAL" in current_role else \
-                 "role-teacher" if "TEACHER" in current_role else \
-                 "role-parent"
-    
-    st.sidebar.markdown(f"""
-    <div style="text-align: center; margin-bottom: 20px;">
-        <span class="role-badge {role_class}">{current_role}</span>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Navigation
-    st.sidebar.markdown("---")
-    page = st.sidebar.radio(
-        "Navigate",
-        ["🏠 Overview", "🤖 Cortex Analyst", "🔮 Horizon Dashboard", 
-         "📊 School Analytics", "👥 Student Data", "ℹ️ About"],
-        label_visibility="collapsed"
-    )
-    
-    # Quick stats
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### Quick Stats")
-    
-    try:
-        stats = run_query("""
-            SELECT 
-                (SELECT COUNT(*) FROM CURATED_DEV.CURATED_DIMENSIONS.DIM_STUDENT) AS students,
-                (SELECT COUNT(*) FROM CURATED_DEV.CURATED_DIMENSIONS.DIM_SCHOOL) AS schools,
-                (SELECT COUNT(*) FROM CURATED_DEV.CURATED_DIMENSIONS.DIM_STAFF) AS staff
-        """)
+    """Render the sidebar navigation"""
+    with st.sidebar:
+        st.markdown("""
+        <div style="text-align: center; padding: 1rem 0 1.5rem 0;">
+            <div style="font-size: 3rem; margin-bottom: 0.5rem;">🎓</div>
+            <h2 style="color: white; font-size: 1.2rem; margin: 0; font-weight: 700;">MA School District</h2>
+            <p style="color: #29B5E8; font-size: 0.85rem; margin: 0.25rem 0 0 0;">Horizon Demo</p>
+        </div>
+        """, unsafe_allow_html=True)
         
-        if not stats.empty:
-            col1, col2 = st.sidebar.columns(2)
-            col1.metric("Students", f"{stats['STUDENTS'].iloc[0]:,}")
-            col2.metric("Schools", f"{stats['SCHOOLS'].iloc[0]:,}")
-            st.sidebar.metric("Staff", f"{stats['STAFF'].iloc[0]:,}")
-    except:
-        st.sidebar.info("Loading stats...")
-    
-    return page
+        st.divider()
+        
+        page = st.radio(
+            "Navigation",
+            ["🤖 Cortex Analyst", "🔮 FERPA Dashboard", "📊 School Analytics", "👥 Student Data", "ℹ️ About"],
+            label_visibility="collapsed"
+        )
+        
+        st.divider()
+        
+        # Quick stats
+        st.markdown("### 📈 Quick Stats")
+        kpis = get_dashboard_kpis()
+        if not kpis.empty:
+            col1, col2 = st.columns(2)
+            with col1:
+                if 'TOTAL_STUDENTS' in kpis.columns:
+                    val = kpis['TOTAL_STUDENTS'].iloc[0]
+                    st.metric("Students", f"{int(val):,}" if pd.notna(val) else 0)
+                if 'TOTAL_SCHOOLS' in kpis.columns:
+                    val = kpis['TOTAL_SCHOOLS'].iloc[0]
+                    st.metric("Schools", int(val) if pd.notna(val) else 0)
+            with col2:
+                if 'TOTAL_STAFF' in kpis.columns:
+                    val = kpis['TOTAL_STAFF'].iloc[0]
+                    st.metric("Staff", f"{int(val):,}" if pd.notna(val) else 0)
+                if 'TOTAL_DISTRICTS' in kpis.columns:
+                    val = kpis['TOTAL_DISTRICTS'].iloc[0]
+                    st.metric("Districts", int(val) if pd.notna(val) else 0)
+        else:
+            st.info("Loading stats...")
+        
+        st.divider()
+        
+        # Current role display
+        session = get_session()
+        try:
+            role_df = session.sql("SELECT CURRENT_ROLE() AS ROLE").to_pandas()
+            current_role = role_df['ROLE'].iloc[0] if not role_df.empty else "Unknown"
+            st.markdown(f"**Current Role:** `{current_role}`")
+        except:
+            pass
+        
+        st.markdown("""
+        <div style="text-align: center; padding-top: 1rem;">
+            <p style="color: rgba(255,255,255,0.6); font-size: 0.75rem; margin: 0;">Powered by</p>
+            <p style="color: #29B5E8; font-size: 0.85rem; margin: 0.25rem 0 0 0; font-weight: 500;">Snowflake Horizon + Cortex</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        return page
 
 # ============================================================================
-# Overview Page
+# CORTEX ANALYST PAGE
 # ============================================================================
 
-def render_overview():
-    """Render main overview page"""
+def render_cortex_page():
+    """Render the Cortex Analyst chat interface"""
     
     st.markdown("""
     <div class="main-header">
-        <h1>🎓 Massachusetts School District</h1>
-        <p>Snowflake Horizon Governance Demo</p>
+        <h1>🤖 Snowflake Cortex Analyst</h1>
+        <p>Ask questions about student, school, and staff data using natural language</p>
     </div>
     """, unsafe_allow_html=True)
     
-    # KPI Row
-    col1, col2, col3, col4 = st.columns(4)
-    
-    try:
-        # Get summary stats from CURATED layer
-        student_count = run_query("SELECT COUNT(*) AS cnt FROM CURATED_DEV.CURATED_DIMENSIONS.DIM_STUDENT")
-        school_count = run_query("SELECT COUNT(*) AS cnt FROM CURATED_DEV.CURATED_DIMENSIONS.DIM_SCHOOL")
-        district_count = run_query("SELECT COUNT(*) AS cnt FROM CURATED_DEV.CURATED_DIMENSIONS.DIM_DISTRICT")
-        staff_count = run_query("SELECT COUNT(*) AS cnt FROM CURATED_DEV.CURATED_DIMENSIONS.DIM_STAFF")
-        
-        with col1:
-            st.metric("Total Students", f"{student_count['CNT'].iloc[0]:,}")
-        with col2:
-            st.metric("Schools", f"{school_count['CNT'].iloc[0]:,}")
-        with col3:
-            st.metric("Districts", f"{district_count['CNT'].iloc[0]:,}")
-        with col4:
-            st.metric("Staff Members", f"{staff_count['CNT'].iloc[0]:,}")
-    except Exception as e:
-        st.warning("Loading data...")
-    
-    st.markdown("---")
-    
-    # Feature highlights
-    st.subheader("Horizon Features Demonstrated")
-    
-    col1, col2 = st.columns(2)
-    
+    # Semantic View selector
+    col1, col2 = st.columns([3, 1])
     with col1:
-        st.markdown("""
-        #### 🏷️ Object Tagging
-        - **FERPA_CATEGORY**: Directory, Educational Record, Sensitive, Health
-        - **PII_TYPE**: None, Low, Moderate, High
-        - **AI_ALLOWED**: True, False, Pseudonymized Only
-        - **DATA_CLASSIFICATION**: Public, Internal, Confidential, Restricted
-        """)
-        
-        st.markdown("""
-        #### 🔒 Masking Policies
-        - SSN masked by role (full, last 4, hidden)
-        - Date of birth (full, month/year, year only)
-        - Address (full, city only, masked)
-        - Student names (full, initials, masked)
-        """)
-    
-    with col2:
-        st.markdown("""
-        #### 👥 Row Access Policies
-        - **District Admin**: All students in district
-        - **Principal**: Students in their school
-        - **Teacher**: Students in their classes
-        - **Parent**: Own children only
-        """)
-        
-        st.markdown("""
-        #### 📊 Observability
-        - Contract health monitoring
-        - SLA compliance tracking
-        - Tag coverage metrics
-        - Access history auditing
-        """)
-    
-    st.markdown("---")
-    
-    # Data by school type
-    st.subheader("Enrollment by School Type")
-    
-    try:
-        enrollment_by_type = run_query("""
-            SELECT 
-                sch.SCHOOL_TYPE,
-                COUNT(DISTINCT s.STUDENT_ID) AS STUDENTS,
-                COUNT(DISTINCT sch.SCHOOL_ID) AS SCHOOLS
-            FROM CURATED_DEV.CURATED_DIMENSIONS.DIM_STUDENT s
-            JOIN CURATED_DEV.CURATED_DIMENSIONS.DIM_SCHOOL sch ON s.CURRENT_SCHOOL_ID = sch.SCHOOL_ID
-            GROUP BY sch.SCHOOL_TYPE
-            ORDER BY STUDENTS DESC
-        """)
-        
-        if not enrollment_by_type.empty:
-            st.bar_chart(enrollment_by_type.set_index('SCHOOL_TYPE')['STUDENTS'])
-    except:
-        st.info("Loading enrollment data...")
-
-# ============================================================================
-# Cortex Analyst Page
-# ============================================================================
-
-# Semantic View mapping for Cortex Analyst
-# Architecture: RAW → CURATED (Dynamic Tables) → SEMANTIC (Semantic Views)
-SEMANTIC_VIEWS = {
-    "Student Enrollment": "SEM_DEV.SEM_STUDENT.STUDENT_ENROLLMENT_ANALYTICS",
-    "Student Demographics": "SEM_DEV.SEM_STUDENT.STUDENT_DEMOGRAPHICS_ANALYTICS",
-    "Enrollment Summary": "SEM_DEV.SEM_STUDENT.ENROLLMENT_SUMMARY_ANALYTICS",
-    "School Performance": "SEM_DEV.SEM_SCHOOL.SCHOOL_PERFORMANCE_ANALYTICS",
-    "Staff Workforce": "SEM_DEV.SEM_STAFF.STAFF_WORKFORCE_ANALYTICS",
-    "Governance": "SEM_DEV.SEM_GOVERNANCE.GOVERNANCE_ANALYTICS",
-    "Data Quality": "SEM_DEV.SEM_GOVERNANCE.DATA_QUALITY_ANALYTICS",
-    "FERPA Compliance": "SEM_DEV.SEM_GOVERNANCE.FERPA_COMPLIANCE_ANALYTICS"
-}
-
-def render_cortex_analyst():
-    """Render Cortex Analyst chat interface with native Snowflake Semantic Views"""
-    
-    st.header("🤖 Cortex Analyst")
-    st.markdown("""
-    Ask questions about school district data in natural language using **Snowflake Semantic Views**.
-    
-    **Architecture:** RAW Layer → CURATED Layer (Dynamic Tables) → SEMANTIC Layer (Semantic Views)
-    
-    Semantic Views provide a governed, AI-ready layer with:
-    - Pre-defined dimensions and metrics built on CURATED layer
-    - Business-friendly column descriptions
-    - Role-based access controls inherited from base tables
-    """)
-    
-    # Semantic View selection
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
-        semantic_view = st.selectbox(
+        views = get_semantic_views()
+        selected_view = st.selectbox(
             "Select Semantic View",
-            list(SEMANTIC_VIEWS.keys()),
-            help="Choose the semantic view for your queries"
+            views,
+            help="Choose which semantic view to query"
         )
-    
     with col2:
-        st.code(SEMANTIC_VIEWS[semantic_view], language="sql")
+        st.write("")
+        if st.button("🔄 Refresh", use_container_width=True):
+            st.cache_data.clear()
+            st.rerun()
     
-    # Sample questions organized by semantic view
-    st.markdown("#### Sample Questions")
-    sample_questions = {
-        "Student Enrollment": [
-            "How many students are enrolled by grade level?",
-            "What is the ELL rate by district?",
-            "Show me enrollment by school type",
-            "Which schools have the highest free/reduced lunch percentage?"
-        ],
-        "Student Demographics": [
-            "What is the gender distribution by grade?",
-            "Show me ethnicity breakdown by school",
-            "Which districts have the highest ELL populations?"
-        ],
-        "Enrollment Summary": [
-            "What is enrollment by grade and school?",
-            "Show me FRL rates by school type",
-            "Which grades have the most special education students?"
-        ],
-        "School Performance": [
-            "What is the student-teacher ratio by school?",
-            "Which schools are over capacity?",
-            "Show me average graduation rates by school type",
-            "List schools with the highest attendance rates"
-        ],
-        "Staff Workforce": [
-            "How many teachers are in each school?",
-            "What is the average years of experience by school type?",
-            "Show me staff distribution by role category"
-        ],
-        "Governance": [
-            "How many data contracts are active?",
-            "What is the overall health score?",
-            "Which contracts have open alerts?"
-        ],
-        "Data Quality": [
-            "What is the quality rule pass rate?",
-            "Which rules are failing most often?",
-            "Show me quality metrics by producer team"
-        ],
-        "FERPA Compliance": [
-            "How many contracts contain restricted data?",
-            "What percentage of data is AI-eligible?",
-            "Show me consumer access levels"
-        ]
-    }
+    st.divider()
     
-    selected_questions = sample_questions.get(semantic_view, [])
+    # Initialize chat history
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = []
     
-    cols = st.columns(2)
-    for i, q in enumerate(selected_questions):
-        with cols[i % 2]:
-            if st.button(q, key=f"sample_{i}"):
-                st.session_state['current_question'] = q
+    # Display chat history
+    for i, chat in enumerate(st.session_state.chat_history):
+        if chat["role"] == "user":
+            st.markdown(f"""
+            <div class="chat-bubble user-bubble">
+                <strong>👤 You</strong><br>{chat["content"]}
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown(f"""
+            <div class="chat-bubble assistant-bubble">
+                <strong>🤖 Cortex Analyst</strong><br>{chat["content"]}
+            </div>
+            """, unsafe_allow_html=True)
+            if "sql" in chat and chat["sql"]:
+                with st.expander("View Generated SQL", expanded=False):
+                    st.code(chat["sql"], language="sql")
+            if "df" in chat and chat["df"] is not None and not chat["df"].empty:
+                st.dataframe(chat["df"], use_container_width=True)
     
-    st.markdown("---")
-    
-    # Chat input
-    question = st.text_input(
-        "Ask a question",
-        value=st.session_state.get('current_question', ''),
-        placeholder="Type your question here..."
-    )
-    
-    if question:
-        st.markdown(f"""
-        <div class="user-message">
-            <strong>You:</strong> {question}
-        </div>
-        """, unsafe_allow_html=True)
+    # Sample questions
+    if not st.session_state.chat_history:
+        st.markdown("### 💡 Sample Questions")
         
-        with st.spinner("Querying via Cortex Analyst..."):
-            # Execute query based on semantic view and keywords
-            try:
-                semantic_view_name = SEMANTIC_VIEWS[semantic_view]
-                
-                if "grade level" in question.lower() or "enrollment" in question.lower():
-                    result = run_query("""
-                        SELECT 
-                            GRADE_LEVEL,
-                            COUNT(*) AS STUDENT_COUNT
-                        FROM CURATED_DEV.CURATED_DIMENSIONS.DIM_STUDENT
-                        WHERE ENROLLMENT_STATUS = 'Active'
-                        GROUP BY GRADE_LEVEL
-                        ORDER BY GRADE_LEVEL_NUM
-                    """)
-                    
-                    st.markdown(f"""
-                    <div class="assistant-message">
-                        <strong>Cortex Analyst:</strong> Using semantic view <code>{semantic_view_name}</code>, 
-                        here's the enrollment breakdown by grade level:
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    st.dataframe(result)
-                    st.bar_chart(result.set_index('GRADE_LEVEL'))
-                    
-                elif "school type" in question.lower() or ("school" in question.lower() and "type" in question.lower()):
-                    result = run_query("""
-                        SELECT 
-                            SCHOOL_TYPE,
-                            COUNT(DISTINCT SCHOOL_ID) AS SCHOOL_COUNT,
-                            SUM(CURRENT_ENROLLMENT) AS TOTAL_ENROLLMENT,
-                            ROUND(AVG(ATTENDANCE_RATE), 1) AS AVG_ATTENDANCE,
-                            ROUND(AVG(STUDENT_TEACHER_RATIO), 1) AS AVG_STU_TEACHER_RATIO
-                        FROM CURATED_DEV.CURATED_DIMENSIONS.DIM_SCHOOL
-                        GROUP BY SCHOOL_TYPE
-                        ORDER BY TOTAL_ENROLLMENT DESC
-                    """)
-                    
-                    st.markdown(f"""
-                    <div class="assistant-message">
-                        <strong>Cortex Analyst:</strong> Using semantic view <code>{semantic_view_name}</code>, 
-                        here's the breakdown by school type:
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    st.dataframe(result)
-                    
-                elif "ell" in question.lower() or "english learner" in question.lower():
-                    result = run_query("""
-                        SELECT 
-                            d.DISTRICT_NAME,
-                            COUNT(*) AS TOTAL_STUDENTS,
-                            SUM(CASE WHEN s.ELL_STATUS THEN 1 ELSE 0 END) AS ELL_STUDENTS,
-                            ROUND(100.0 * SUM(CASE WHEN s.ELL_STATUS THEN 1 ELSE 0 END) / COUNT(*), 1) AS ELL_RATE
-                        FROM CURATED_DEV.CURATED_DIMENSIONS.DIM_STUDENT s
-                        JOIN CURATED_DEV.CURATED_DIMENSIONS.DIM_DISTRICT d ON s.CURRENT_DISTRICT_ID = d.DISTRICT_ID
-                        WHERE s.ENROLLMENT_STATUS = 'Active'
-                        GROUP BY d.DISTRICT_NAME
-                        ORDER BY ELL_RATE DESC
-                    """)
-                    
-                    st.markdown(f"""
-                    <div class="assistant-message">
-                        <strong>Cortex Analyst:</strong> Using semantic view <code>{semantic_view_name}</code>, 
-                        here's the ELL rate by district:
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    st.dataframe(result)
-                    st.bar_chart(result.set_index('DISTRICT_NAME')['ELL_RATE'])
-                    
-                elif "contract" in question.lower() or "active" in question.lower():
-                    result = run_query("""
-                        SELECT 
-                            STATUS,
-                            HEALTH_STATUS,
-                            COUNT(*) AS CONTRACT_COUNT
-                        FROM GOVERNANCE.CONTRACT_REGISTRY.CONTRACTS
-                        GROUP BY STATUS, HEALTH_STATUS
-                        ORDER BY STATUS, HEALTH_STATUS
-                    """)
-                    
-                    st.markdown(f"""
-                    <div class="assistant-message">
-                        <strong>Cortex Analyst:</strong> Using semantic view <code>{semantic_view_name}</code>, 
-                        here's the contract status overview:
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    st.dataframe(result)
-                    
-                elif "teacher" in question.lower() or "staff" in question.lower():
-                    result = run_query("""
-                        SELECT 
-                            ROLE_CATEGORY,
-                            COUNT(*) AS STAFF_COUNT,
-                            ROUND(AVG(YEARS_EXPERIENCE), 1) AS AVG_EXPERIENCE,
-                            ROUND(AVG(TENURE_YEARS), 1) AS AVG_TENURE
-                        FROM CURATED_DEV.CURATED_DIMENSIONS.DIM_STAFF
-                        WHERE EMPLOYMENT_STATUS = 'Active'
-                        GROUP BY ROLE_CATEGORY
-                        ORDER BY STAFF_COUNT DESC
-                    """)
-                    
-                    st.markdown(f"""
-                    <div class="assistant-message">
-                        <strong>Cortex Analyst:</strong> Using semantic view <code>{semantic_view_name}</code>, 
-                        here's the staff distribution:
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    st.dataframe(result)
-                    st.bar_chart(result.set_index('ROLE_CATEGORY')['STAFF_COUNT'])
-                    
-                else:
-                    st.markdown(f"""
-                    <div class="assistant-message">
-                        <strong>Cortex Analyst:</strong> I'm ready to answer questions using the 
-                        <code>{semantic_view_name}</code> semantic view.
-                        
-                        Try questions about:
-                        - Student enrollment and demographics
-                        - School performance and capacity
-                        - Staff and workforce metrics
-                        - Data governance and quality
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-            except Exception as e:
-                st.error(f"Error processing query: {str(e)}")
+        sample_questions = {
+            "SEM_DEV.SEM_STUDENT.STUDENT_ENROLLMENT_ANALYTICS": [
+                "How many students are enrolled by school type?",
+                "What is the ELL rate by district?",
+                "Show me at-risk student counts by grade level",
+                "Which schools have the highest enrollment?"
+            ],
+            "SEM_DEV.SEM_STUDENT.STUDENT_DEMOGRAPHICS_ANALYTICS": [
+                "What is the student count by ethnicity?",
+                "Show demographics by school type",
+                "What languages do students speak?",
+                "What is the gender breakdown by grade?"
+            ],
+            "SEM_DEV.SEM_SCHOOL.SCHOOL_PERFORMANCE_ANALYTICS": [
+                "Which schools have the highest capacity utilization?",
+                "What is the student-teacher ratio by school type?",
+                "Show graduation rates by district",
+                "How many Title I schools are there?"
+            ],
+            "SEM_DEV.SEM_STAFF.STAFF_WORKFORCE_ANALYTICS": [
+                "How many teachers are highly qualified?",
+                "What is the average experience by department?",
+                "Show staff counts by role category",
+                "What is the tenure distribution?"
+            ],
+            "SEM_DEV.SEM_GOVERNANCE.GOVERNANCE_ANALYTICS": [
+                "How many data contracts are active?",
+                "Show contract health status",
+                "What is the alert breakdown by type?",
+                "Which contracts have quality rules?"
+            ]
+        }
+        
+        questions = sample_questions.get(selected_view, [
+            "Show me a summary of the data",
+            "What are the key metrics?",
+            "What are the totals by category?",
+            "Show me the top 10 items"
+        ])
+        
+        cols = st.columns(2)
+        for i, q in enumerate(questions):
+            with cols[i % 2]:
+                if st.button(f"💬 {q}", key=f"sample_{i}", use_container_width=True):
+                    process_question(q, selected_view)
+                    st.rerun()
+    
+    st.divider()
+    
+    # Text input for questions
+    col1, col2 = st.columns([5, 1])
+    with col1:
+        user_question = st.text_input(
+            "Ask a question",
+            placeholder="Ask a question about education data...",
+            label_visibility="collapsed",
+            key="question_input"
+        )
+    with col2:
+        ask_clicked = st.button("🚀 Ask", use_container_width=True)
+    
+    if ask_clicked and user_question:
+        process_question(user_question, selected_view)
+        st.rerun()
+    
+    # Clear chat button
+    if st.session_state.chat_history:
+        if st.button("🗑️ Clear Chat", key="clear_chat"):
+            st.session_state.chat_history = []
+            st.rerun()
+
+def process_question(prompt: str, semantic_view: str):
+    """Process a user question via Cortex Analyst API"""
+    
+    st.session_state.chat_history.append({
+        "role": "user",
+        "content": prompt
+    })
+    
+    api_response, error = call_cortex_analyst(prompt, semantic_view)
+    
+    if error:
+        st.session_state.chat_history.append({
+            "role": "assistant",
+            "content": f"❌ {error}"
+        })
+        return
+    
+    if api_response:
+        msg_content = api_response.get("message", {}).get("content", [])
+        sql_query = None
+        explanation = ""
+        
+        for part in msg_content:
+            if part.get("type") == "text":
+                explanation += part.get("text", "")
+            elif part.get("type") == "sql":
+                sql_query = part.get("statement", "")
+        
+        result_df = None
+        if sql_query:
+            result_df, sql_error = execute_sql(sql_query)
+            if sql_error:
+                explanation += f"\n\n⚠️ SQL Error: {sql_error}"
+        
+        st.session_state.chat_history.append({
+            "role": "assistant",
+            "content": explanation if explanation else "✅ Query executed successfully",
+            "sql": sql_query,
+            "df": result_df
+        })
 
 # ============================================================================
-# Horizon Dashboard Page
+# FERPA DASHBOARD PAGE
 # ============================================================================
 
-def render_horizon_dashboard():
-    """Render Horizon governance dashboard"""
+def render_ferpa_dashboard():
+    """Render the FERPA governance dashboard"""
     
-    st.header("🔮 Horizon Governance Dashboard")
+    st.markdown("""
+    <div class="ferpa-header">
+        <h1>🔮 FERPA Compliance Dashboard</h1>
+        <p>Snowflake Horizon - Education Data Governance</p>
+    </div>
+    """, unsafe_allow_html=True)
     
-    # Governance health stoplights
-    st.subheader("Governance Health")
+    kpis = get_dashboard_kpis()
+    
+    # KPI Row
+    st.markdown("### 📊 District Overview")
     
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        st.markdown("""
-        <div class="kpi-card">
-            <div class="kpi-value stoplight-green">🟢</div>
-            <div class="kpi-label">Data Quality</div>
-            <div>98.5% Pass Rate</div>
+        val = kpis['TOTAL_STUDENTS'].iloc[0] if not kpis.empty and 'TOTAL_STUDENTS' in kpis.columns else 0
+        st.markdown(f"""
+        <div class="metric-card success">
+            <strong>Total Students</strong>
+            <h2>{int(val):,}</h2>
         </div>
         """, unsafe_allow_html=True)
     
     with col2:
-        st.markdown("""
-        <div class="kpi-card">
-            <div class="kpi-value stoplight-green">🟢</div>
-            <div class="kpi-label">SLA Compliance</div>
-            <div>99.2% On-Time</div>
+        val = kpis['TOTAL_SCHOOLS'].iloc[0] if not kpis.empty and 'TOTAL_SCHOOLS' in kpis.columns else 0
+        st.markdown(f"""
+        <div class="metric-card">
+            <strong>Schools</strong>
+            <h2>{int(val)}</h2>
         </div>
         """, unsafe_allow_html=True)
     
     with col3:
-        st.markdown("""
-        <div class="kpi-card">
-            <div class="kpi-value stoplight-yellow">🟡</div>
-            <div class="kpi-label">Tag Coverage</div>
-            <div>87% Tagged</div>
+        val = kpis['ACTIVE_CONTRACTS'].iloc[0] if not kpis.empty and 'ACTIVE_CONTRACTS' in kpis.columns else 0
+        st.markdown(f"""
+        <div class="metric-card">
+            <strong>Data Contracts</strong>
+            <h2>{int(val)}</h2>
         </div>
         """, unsafe_allow_html=True)
     
     with col4:
-        st.markdown("""
-        <div class="kpi-card">
-            <div class="kpi-value stoplight-green">🟢</div>
-            <div class="kpi-label">FERPA Compliance</div>
-            <div>100% Protected</div>
+        val = kpis['OPEN_ALERTS'].iloc[0] if not kpis.empty and 'OPEN_ALERTS' in kpis.columns else 0
+        stoplight = "green" if val == 0 else ("yellow" if val <= 3 else "red")
+        card_class = "success" if stoplight == "green" else ("warning" if stoplight == "yellow" else "error")
+        st.markdown(f"""
+        <div class="metric-card {card_class}">
+            <span class="stoplight {stoplight}"></span>
+            <strong>Open Alerts</strong>
+            <h2>{int(val)}</h2>
         </div>
         """, unsafe_allow_html=True)
     
-    st.markdown("---")
+    st.divider()
     
-    # Tag coverage details
-    st.subheader("Tag Coverage by Table")
-    
-    tag_coverage = pd.DataFrame({
-        'Table': ['STUDENT_RAW', 'STAFF_RAW', 'SCHOOL_RAW', 'GUARDIAN_RAW', 'ENROLLMENT_RAW'],
-        'FERPA_CATEGORY': [100, 85, 100, 90, 100],
-        'PII_TYPE': [100, 90, 100, 95, 100],
-        'AI_ALLOWED': [95, 80, 100, 85, 90],
-        'DATA_CLASSIFICATION': [100, 100, 100, 100, 100]
-    })
-    
-    st.dataframe(tag_coverage, use_container_width=True)
-    
-    st.markdown("---")
-    
-    # Recent access patterns
-    st.subheader("Access Patterns (Last 24 Hours)")
-    
+    # Charts Row
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("#### Queries by Role")
-        access_by_role = pd.DataFrame({
-            'Role': ['DATA_ADMIN', 'PRINCIPAL', 'TEACHER', 'PARENT_PORTAL', 'AI_AGENT'],
-            'Query Count': [45, 128, 892, 234, 67]
-        })
-        st.bar_chart(access_by_role.set_index('Role'))
+        st.markdown("### 🏫 Enrollment by School Type")
+        enrollment = get_enrollment_by_school_type()
+        if not enrollment.empty:
+            st.bar_chart(enrollment.set_index('SCHOOL_TYPE'))
+        else:
+            st.info("Loading enrollment data...")
     
     with col2:
-        st.markdown("#### PII Access Events")
-        pii_access = pd.DataFrame({
-            'Data Type': ['Student Names', 'SSN (masked)', 'Addresses', 'Grades'],
-            'Access Count': [1245, 23, 156, 2341]
-        })
-        st.bar_chart(pii_access.set_index('Data Type'))
+        st.markdown("### 📋 Special Program Participation")
+        programs = get_program_participation()
+        if not programs.empty:
+            program_data = pd.DataFrame({
+                'Program': ['ELL', 'SPED', '504', 'Gifted', 'FRL'],
+                'Count': [
+                    programs['ELL_COUNT'].iloc[0],
+                    programs['SPED_COUNT'].iloc[0],
+                    programs['SECTION_504_COUNT'].iloc[0],
+                    programs['GIFTED_COUNT'].iloc[0],
+                    programs['FRL_COUNT'].iloc[0]
+                ]
+            })
+            st.bar_chart(program_data.set_index('Program'))
+        else:
+            st.info("Loading program data...")
+    
+    st.divider()
+    
+    # Governance Info
+    st.markdown("### 🛡️ FERPA Governance Tags Applied")
+    
+    st.markdown("""
+    | Tag | Purpose | Coverage |
+    |-----|---------|----------|
+    | `FERPA_CATEGORY` | Classifies data as DIRECTORY, EDUCATIONAL_RECORD, or SENSITIVE | Student & Staff tables |
+    | `PII_TYPE` | Identifies SSN, DOB, ADDRESS, NAME, CONTACT | All PII columns |
+    | `DATA_CLASSIFICATION` | PUBLIC, CONFIDENTIAL, RESTRICTED levels | All tables |
+    | `AI_ALLOWED` | Controls Cortex AI access to sensitive data | PII columns |
+    """)
+    
+    st.divider()
+    
+    st.markdown("### 🔒 Role-Based Access Control")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("""
+        **Administrative Roles:**
+        - `DISTRICT_ADMIN` - Full district access
+        - `PRINCIPAL` - School-level access
+        - `DATA_ADMIN` - System administration
+        """)
+    with col2:
+        st.markdown("""
+        **Operational Roles:**
+        - `TEACHER` - Classroom students only
+        - `COUNSELOR` - Assigned students
+        - `PARENT_PORTAL` - Own children only
+        """)
 
 # ============================================================================
-# School Analytics Page
+# SCHOOL ANALYTICS PAGE
 # ============================================================================
 
 def render_school_analytics():
     """Render school analytics page"""
     
-    st.header("📊 School Analytics")
+    st.markdown("""
+    <div class="main-header">
+        <h1>📊 School Analytics</h1>
+        <p>Capacity, performance, and staffing metrics</p>
+    </div>
+    """, unsafe_allow_html=True)
     
-    # School filter - using CURATED layer
-    districts = run_query("""
-        SELECT DISTINCT d.DISTRICT_NAME 
-        FROM CURATED_DEV.CURATED_DIMENSIONS.DIM_DISTRICT d
-        ORDER BY DISTRICT_NAME
-    """)
+    session = get_session()
     
-    selected_district = st.selectbox(
-        "Select District",
-        ["All Districts"] + districts['DISTRICT_NAME'].tolist() if not districts.empty else ["All Districts"]
-    )
-    
-    # School metrics
     try:
-        where_clause = f"AND d.DISTRICT_NAME = '{selected_district}'" if selected_district != "All Districts" else ""
-        
-        school_metrics = run_query(f"""
+        schools_df = session.sql("""
             SELECT 
-                s.SCHOOL_NAME,
-                s.SCHOOL_TYPE,
-                d.DISTRICT_NAME,
-                s.CURRENT_ENROLLMENT,
-                s.TEACHER_COUNT,
-                s.STUDENT_TEACHER_RATIO,
-                s.CAPACITY_UTILIZATION_PCT,
-                s.ATTENDANCE_RATE,
-                s.GRADUATION_RATE
-            FROM CURATED_DEV.CURATED_DIMENSIONS.DIM_SCHOOL s
-            JOIN CURATED_DEV.CURATED_DIMENSIONS.DIM_DISTRICT d ON s.DISTRICT_ID = d.DISTRICT_ID
-            WHERE 1=1 {where_clause}
-            ORDER BY s.CURRENT_ENROLLMENT DESC
-            LIMIT 20
-        """)
+                SCHOOL_NAME,
+                SCHOOL_TYPE,
+                DISTRICT_NAME,
+                BUILDING_CAPACITY,
+                CURRENT_ENROLLMENT,
+                CAPACITY_UTILIZATION_PCT,
+                CAPACITY_STATUS,
+                STUDENT_TEACHER_RATIO,
+                ACCOUNTABILITY_RATING
+            FROM CURATED_DEV.CURATED_DIMENSIONS.DIM_SCHOOL
+            ORDER BY CURRENT_ENROLLMENT DESC
+            LIMIT 50
+        """).to_pandas()
         
-        if not school_metrics.empty:
-            st.dataframe(school_metrics, use_container_width=True)
+        if not schools_df.empty:
+            st.dataframe(schools_df, use_container_width=True)
+            
+            st.divider()
             
             col1, col2 = st.columns(2)
-            
             with col1:
-                st.subheader("Enrollment Distribution")
-                enrollment_chart = school_metrics[['SCHOOL_NAME', 'CURRENT_ENROLLMENT']].head(10)
-                st.bar_chart(enrollment_chart.set_index('SCHOOL_NAME'))
+                st.markdown("### Capacity Utilization")
+                cap_data = schools_df[['SCHOOL_TYPE', 'CAPACITY_UTILIZATION_PCT']].groupby('SCHOOL_TYPE').mean()
+                st.bar_chart(cap_data)
             
             with col2:
-                st.subheader("Student-Teacher Ratio")
-                ratio_chart = school_metrics[['SCHOOL_NAME', 'STUDENT_TEACHER_RATIO']].head(10)
-                st.bar_chart(ratio_chart.set_index('SCHOOL_NAME'))
-                
+                st.markdown("### Student-Teacher Ratio")
+                ratio_data = schools_df[['SCHOOL_TYPE', 'STUDENT_TEACHER_RATIO']].groupby('SCHOOL_TYPE').mean()
+                st.bar_chart(ratio_data)
+        else:
+            st.info("No school data available")
+            
     except Exception as e:
         st.error(f"Error loading school data: {str(e)}")
 
 # ============================================================================
-# Student Data Page
+# STUDENT DATA PAGE
 # ============================================================================
 
 def render_student_data():
-    """Render student data page with role-based access"""
+    """Render student data page with role-based access demo"""
     
-    st.header("👥 Student Data")
+    st.markdown("""
+    <div class="main-header">
+        <h1>👥 Student Data</h1>
+        <p>Role-based access to student information (FERPA protected)</p>
+    </div>
+    """, unsafe_allow_html=True)
     
-    current_role = get_current_role()
+    session = get_session()
     
-    st.info(f"""
-    **Current Role: {current_role}**
+    # Show current role
+    try:
+        role_df = session.sql("SELECT CURRENT_ROLE() AS ROLE").to_pandas()
+        current_role = role_df['ROLE'].iloc[0] if not role_df.empty else "Unknown"
+        
+        st.info(f"**Viewing as role:** `{current_role}` - Data visibility is controlled by Horizon policies")
+        
+    except:
+        current_role = "Unknown"
     
-    Data visibility is controlled by your role. Different roles see different levels of detail:
-    - **DATA_ADMIN/PII_VIEWER**: Full access to all student data
-    - **DISTRICT_ADMIN**: All students in district, some fields masked
-    - **PRINCIPAL**: Students in their school only
-    - **TEACHER**: Students in their classes only
-    - **PARENT_PORTAL**: Own children only
-    """)
+    st.divider()
     
     try:
-        # Show masked student data based on role - using CURATED layer with derived fields
-        student_sample = run_query("""
+        # Show aggregate student data (safe for all roles)
+        st.markdown("### 📈 Enrollment Summary by Grade")
+        
+        summary_df = session.sql("""
+            SELECT 
+                GRADE_LEVEL,
+                COUNT(*) AS STUDENT_COUNT,
+                SUM(CASE WHEN SPECIAL_EDUCATION THEN 1 ELSE 0 END) AS SPED_COUNT,
+                SUM(CASE WHEN ELL_STATUS THEN 1 ELSE 0 END) AS ELL_COUNT
+            FROM CURATED_DEV.CURATED_DIMENSIONS.DIM_STUDENT
+            WHERE ENROLLMENT_STATUS = 'Active'
+            GROUP BY GRADE_LEVEL
+            ORDER BY GRADE_LEVEL
+        """).to_pandas()
+        
+        if not summary_df.empty:
+            st.dataframe(summary_df, use_container_width=True)
+        
+        st.divider()
+        
+        # Show sample student records (masked based on role)
+        st.markdown("### 👤 Sample Student Records")
+        st.caption("PII fields are masked based on your role and Horizon masking policies")
+        
+        student_df = session.sql("""
             SELECT 
                 STUDENT_ID,
                 DISPLAY_NAME,
                 GRADE_LEVEL,
-                GRADE_LEVEL_CATEGORY,
-                CURRENT_SCHOOL_ID,
+                SCHOOL_NAME,
                 ENROLLMENT_STATUS,
-                AT_RISK_FLAG,
-                CASE 
-                    WHEN CURRENT_ROLE() IN ('DATA_ADMIN', 'PII_VIEWER') THEN SSN
-                    WHEN CURRENT_ROLE() = 'DISTRICT_ADMIN' THEN 'XXX-XX-' || RIGHT(SSN, 4)
-                    ELSE '***-**-****'
-                END AS SSN_DISPLAY,
-                CASE 
-                    WHEN CURRENT_ROLE() IN ('DATA_ADMIN', 'PII_VIEWER', 'COUNSELOR') THEN TO_VARCHAR(DATE_OF_BIRTH)
-                    WHEN CURRENT_ROLE() IN ('DISTRICT_ADMIN', 'PRINCIPAL') THEN TO_VARCHAR(DATE_TRUNC('MONTH', DATE_OF_BIRTH))
-                    ELSE TO_VARCHAR(YEAR(DATE_OF_BIRTH))
-                END AS DOB_DISPLAY,
-                AGE
+                AT_RISK_FLAG
             FROM CURATED_DEV.CURATED_DIMENSIONS.DIM_STUDENT
-            ORDER BY LAST_NAME, FIRST_NAME
-            LIMIT 50
-        """)
+            WHERE ENROLLMENT_STATUS = 'Active'
+            LIMIT 10
+        """).to_pandas()
         
-        if not student_sample.empty:
-            st.dataframe(student_sample, use_container_width=True)
+        if not student_df.empty:
+            st.dataframe(student_df, use_container_width=True)
             
-            st.markdown("---")
-            st.subheader("Enrollment Summary")
-            
-            enrollment_summary = run_query("""
-                SELECT 
-                    GRADE_LEVEL,
-                    COUNT(*) AS STUDENT_COUNT,
-                    SUM(CASE WHEN SPECIAL_EDUCATION THEN 1 ELSE 0 END) AS SPED_COUNT,
-                    SUM(CASE WHEN ELL_STATUS THEN 1 ELSE 0 END) AS ELL_COUNT,
-                    SUM(CASE WHEN AT_RISK_FLAG THEN 1 ELSE 0 END) AS AT_RISK_COUNT
-                FROM CURATED_DEV.CURATED_DIMENSIONS.DIM_STUDENT
-                WHERE ENROLLMENT_STATUS = 'Active'
-                GROUP BY GRADE_LEVEL, GRADE_LEVEL_NUM
-                ORDER BY GRADE_LEVEL_NUM
-                ORDER BY GRADE_LEVEL
-            """)
-            
-            if not enrollment_summary.empty:
-                st.dataframe(enrollment_summary, use_container_width=True)
-                
     except Exception as e:
         st.error(f"Error loading student data: {str(e)}")
 
 # ============================================================================
-# About Page
+# ABOUT PAGE
 # ============================================================================
 
 def render_about():
     """Render about page"""
     
-    st.header("ℹ️ About This Demo")
+    st.markdown("""
+    <div class="main-header">
+        <h1>ℹ️ About This Demo</h1>
+        <p>Massachusetts School District - Snowflake Horizon Demo</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("""
+        ### 🔮 Snowflake Horizon
+        
+        Education data governance with:
+        
+        - **FERPA Tagging** — FERPA_CATEGORY, PII_TYPE, AI_ALLOWED
+        - **Dynamic Masking** — Role-based PII protection
+        - **Row Access Policies** — Teacher/Parent/Principal filtering
+        - **Audit Trail** — Complete access history
+        """)
+        
+        st.markdown("""
+        ### 🏗️ Data Architecture
+        
+        - **RAW Layer** — SCD Type 2 history tracking
+        - **CURATED Layer** — Dynamic Tables with derived attributes
+        - **SEMANTIC Layer** — Native Snowflake Semantic Views
+        - **Data Contracts** — Quality rules and SLAs
+        """)
+    
+    with col2:
+        st.markdown("""
+        ### 🤖 Snowflake Cortex
+        
+        AI for education analytics:
+        
+        - **Cortex Analyst** — Natural language queries
+        - **Semantic Views** — Business-friendly metrics
+        - **LLM Functions** — Summarization, translation
+        """)
+        
+        st.markdown("""
+        ### 📊 Sample Data
+        
+        - **100,000** Students (K-12)
+        - **250** Schools
+        - **25** Districts (Greater Boston)
+        - **12,000** Staff members
+        - **150,000** Guardians
+        """)
+    
+    st.divider()
     
     st.markdown("""
-    ## Massachusetts School District Horizon Demo
+    ### 🎯 FERPA Compliance
     
-    This demonstration showcases **Snowflake Horizon** governance capabilities using 
-    synthetic Massachusetts school district data.
+    > *"The Family Educational Rights and Privacy Act (FERPA) protects the privacy of student education records."*
     
-    ### Data Overview
-    
-    | Entity | Count | Description |
-    |--------|-------|-------------|
-    | Students | 100,000 | K-12 students with demographics |
-    | Schools | 250 | Elementary, Middle, High schools |
-    | Districts | 25 | Greater Boston area districts |
-    | Staff | 12,000 | Teachers, administrators, support |
-    | Guardians | 150,000 | Parents/guardians |
-    
-    ### Horizon Features Demonstrated
-    
-    1. **Object Tagging**
-       - FERPA_CATEGORY (Directory, Educational Record, Sensitive, Health)
-       - PII_TYPE (None, Low, Moderate, High)
-       - AI_ALLOWED (True, False, Pseudonymized Only)
-       - DATA_CLASSIFICATION (Public, Internal, Confidential, Restricted)
-    
-    2. **Tag-Based Masking Policies**
-       - Dynamic PII protection based on user role
-       - SSN, DOB, Address, Names masked appropriately
-       - Sensitive flags (IEP, 504) restricted to authorized roles
-    
-    3. **Row Access Policies**
-       - Education hierarchy enforcement
-       - Teachers see only their students
-       - Parents see only their children
-       - Principals see their school only
-    
-    4. **Access History**
-       - Complete audit trail for FERPA compliance
-       - Who accessed what, when, and why
-    
-    5. **Cortex Analyst**
-       - Natural language queries on governed data
-       - Respects masking and row access policies
-    
-    ### Resources
-    
-    - [Snowflake Horizon](https://www.snowflake.com/en/data-cloud/horizon/)
-    - [Object Tagging](https://docs.snowflake.com/en/user-guide/object-tagging)
-    - [Masking Policies](https://docs.snowflake.com/en/user-guide/security-column-ddm-intro)
-    - [Row Access Policies](https://docs.snowflake.com/en/user-guide/security-row-intro)
-    - [FERPA Overview](https://www2.ed.gov/policy/gen/guid/fpco/ferpa/index.html)
+    This demo implements FERPA controls through Snowflake Horizon governance tags and policies.
     """)
 
 # ============================================================================
-# Main Application
+# MAIN APP
 # ============================================================================
 
 def main():
     """Main application entry point"""
-    
     page = render_sidebar()
     
-    if page == "🏠 Overview":
-        render_overview()
-    elif page == "🤖 Cortex Analyst":
-        render_cortex_analyst()
-    elif page == "🔮 Horizon Dashboard":
-        render_horizon_dashboard()
+    if page == "🤖 Cortex Analyst":
+        render_cortex_page()
+    elif page == "🔮 FERPA Dashboard":
+        render_ferpa_dashboard()
     elif page == "📊 School Analytics":
         render_school_analytics()
     elif page == "👥 Student Data":
