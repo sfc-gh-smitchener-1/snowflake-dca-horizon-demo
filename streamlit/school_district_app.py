@@ -167,9 +167,10 @@ def get_session():
     return get_active_session()
 
 def call_cortex_analyst(prompt: str, semantic_view: str):
-    """Calls the Cortex Analyst API using the Snowflake session."""
+    """Calls the Cortex Analyst API using the Snowflake session. No fallbacks."""
     session = get_session()
     
+    # Try internal REST client first (for Streamlit in Snowflake)
     try:
         rest = session._conn._rest
         endpoint = "/api/v2/cortex/analyst/message"
@@ -191,27 +192,50 @@ def call_cortex_analyst(prompt: str, semantic_view: str):
         if response and 'message' in response:
             return response, None
         else:
-            return call_cortex_complete_fallback(prompt, semantic_view)
+            return None, "Cortex Analyst did not return a valid response. Please try rephrasing your question."
             
     except AttributeError:
+        # Try external API approach
         return call_cortex_analyst_external(prompt, semantic_view)
     except Exception as e:
-        return call_cortex_complete_fallback(prompt, semantic_view)
+        return None, f"Cortex Analyst API error: {str(e)}"
 
 def call_cortex_analyst_external(prompt: str, semantic_view: str):
-    """Calls Cortex Analyst using external REST API with token."""
+    """Calls Cortex Analyst using external REST API with token. No fallbacks."""
     session = get_session()
     
     try:
-        host = session.connection.host if hasattr(session, 'connection') else None
+        # Try to get host
+        host = None
+        try:
+            host = session.connection.host
+        except:
+            pass
+        
+        if not host:
+            try:
+                # Try to get from account
+                account_df = session.sql("SELECT CURRENT_ACCOUNT_NAME() || '.snowflakecomputing.com' AS HOST").to_pandas()
+                if not account_df.empty:
+                    host = account_df['HOST'].iloc[0]
+            except:
+                pass
+        
+        # Try to get token
         token = None
         try:
             token = session._conn._rest._token
         except:
             pass
         
+        if not token:
+            try:
+                token = session._conn._token
+            except:
+                pass
+        
         if not host or not token:
-            return call_cortex_complete_fallback(prompt, semantic_view)
+            return None, "Could not establish Cortex Analyst connection. Please ensure Cortex Analyst is enabled for your account."
         
         url = f"https://{host}/api/v2/cortex/analyst/message"
         
@@ -232,130 +256,24 @@ def call_cortex_analyst_external(prompt: str, semantic_view: str):
         
         if response.status_code == 200:
             return response.json(), None
+        elif response.status_code == 401:
+            return None, "Authentication failed. Please refresh the page and try again."
+        elif response.status_code == 404:
+            return None, f"Semantic view '{semantic_view}' not found. Please ensure it exists."
         else:
-            return call_cortex_complete_fallback(prompt, semantic_view)
+            error_msg = f"Cortex Analyst returned status {response.status_code}"
+            try:
+                error_detail = response.json()
+                if 'message' in error_detail:
+                    error_msg += f": {error_detail['message']}"
+            except:
+                pass
+            return None, error_msg
             
+    except requests.exceptions.RequestException as e:
+        return None, f"Network error connecting to Cortex Analyst: {str(e)}"
     except Exception as e:
-        return call_cortex_complete_fallback(prompt, semantic_view)
-
-def call_cortex_complete_fallback(prompt: str, semantic_view: str):
-    """Fallback using CORTEX.COMPLETE to generate SQL for semantic views."""
-    session = get_session()
-    
-    try:
-        view_info = get_semantic_view_info(semantic_view)
-        
-        escaped_prompt = prompt.replace("'", "''")
-        escaped_view = semantic_view.replace("'", "''")
-        escaped_info = view_info.replace("'", "''")
-        
-        result = session.sql(f"""
-            SELECT SNOWFLAKE.CORTEX.COMPLETE(
-                'llama3.1-70b',
-                'Generate a SQL query using the SEMANTIC_VIEW() function.
-
-SEMANTIC VIEW: {escaped_view}
-
-AVAILABLE COLUMNS (USE EXACT NAMES - do not modify or prefix these):
-{escaped_info}
-
-USE THIS EXACT PATTERN - the SEMANTIC_VIEW() function:
-SELECT * FROM SEMANTIC_VIEW(
-  {escaped_view}
-  DIMENSIONS dimension1, dimension2
-  METRICS metric1, metric2
-)
-
-CRITICAL RULES:
-1. Always use SEMANTIC_VIEW() function - this is the ONLY correct way
-2. List dimensions after DIMENSIONS keyword (comma separated, no quotes)
-3. List metrics after METRICS keyword (comma separated, no quotes)
-4. USE EXACT COLUMN NAMES from the lists above - do NOT rename, prefix, or modify them
-5. For example: use AGE not STUDENT_AGE, use GRADE_LEVEL not STUDENT_GRADE_LEVEL
-6. Return ONLY the SQL query, no explanation
-7. Do not add table prefixes to column names inside SEMANTIC_VIEW()
-
-Question: {escaped_prompt}
-
-SQL:'
-            ) AS response
-        """).to_pandas()
-        
-        if not result.empty:
-            sql = result['RESPONSE'].iloc[0].strip()
-            
-            if '```' in sql:
-                parts = sql.split('```')
-                for part in parts:
-                    if 'SELECT' in part.upper():
-                        sql = part.strip()
-                        if sql.lower().startswith('sql'):
-                            sql = sql[3:].strip()
-                        break
-            
-            if ';' in sql:
-                sql = sql.split(';')[0] + ';'
-            
-            return {
-                "message": {
-                    "content": [
-                        {"type": "text", "text": "Here's the query for your question:"},
-                        {"type": "sql", "statement": sql}
-                    ]
-                }
-            }, None
-        else:
-            return None, "No response generated"
-            
-    except Exception as e:
-        return None, f"Error: {str(e)}"
-
-def get_semantic_view_info(semantic_view: str) -> str:
-    """Get metadata about a semantic view for LLM context."""
-    session = get_session()
-    
-    info_parts = []
-    
-    try:
-        dims = session.sql(f"SHOW SEMANTIC DIMENSIONS IN SEMANTIC VIEW {semantic_view}").to_pandas()
-        if not dims.empty and 'name' in dims.columns:
-            dim_names = dims['name'].tolist()
-            info_parts.append(f"DIMENSIONS: {', '.join(dim_names)}")
-    except:
-        pass
-    
-    try:
-        metrics = session.sql(f"SHOW SEMANTIC METRICS IN SEMANTIC VIEW {semantic_view}").to_pandas()
-        if not metrics.empty and 'name' in metrics.columns:
-            metric_names = metrics['name'].tolist()
-            info_parts.append(f"METRICS: {', '.join(metric_names)}")
-    except:
-        pass
-    
-    if info_parts:
-        return "\n".join(info_parts)
-    
-    # Fallback hardcoded info for education semantic views
-    view_contexts = {
-        'STUDENT_ENROLLMENT_ANALYTICS': """DIMENSIONS: STUDENT_ID, DISPLAY_NAME, GRADE_LEVEL, GRADE_LEVEL_CATEGORY, ENROLLMENT_STATUS, COHORT_YEAR, AGE, GENDER, ETHNICITY, PRIMARY_LANGUAGE, ELL_STATUS, SPECIAL_EDUCATION, SECTION_504, GIFTED_TALENTED, FREE_REDUCED_LUNCH, HOMELESS_STATUS, AT_RISK_FLAG, PROGRAM_COUNT, SCHOOL_ID, SCHOOL_NAME, SCHOOL_TYPE, IS_TITLE_I, IS_MAGNET, IS_CHARTER, CITY, COUNTY, ACCOUNTABILITY_RATING, CAPACITY_STATUS, DISTRICT_ID, DISTRICT_NAME, SUPERINTENDENT_NAME
-METRICS: student_count, active_students, at_risk_count, ell_count, sped_count, section504_count, gifted_count, frl_count, homeless_count, school_count, title_i_count, total_capacity, total_enrollment, ell_rate, sped_rate, frl_rate, at_risk_rate, capacity_utilization""",
-        'STUDENT_DEMOGRAPHICS_ANALYTICS': """DIMENSIONS: GRADE_LEVEL, GRADE_LEVEL_CATEGORY, GENDER, ETHNICITY, RACE, PRIMARY_LANGUAGE, ELL_STATUS, FREE_REDUCED_LUNCH, COUNTY, SCHOOL_NAME, SCHOOL_TYPE
-METRICS: student_count, ell_count, frl_count, ell_rate, frl_rate""",
-        'SCHOOL_PERFORMANCE_ANALYTICS': """DIMENSIONS: SCHOOL_ID, SCHOOL_NAME, SCHOOL_TYPE, GRADE_LEVELS_SERVED, IS_TITLE_I, IS_MAGNET, IS_CHARTER, CITY, COUNTY, ACCOUNTABILITY_RATING, CAPACITY_STATUS, PRINCIPAL_NAME, DISTRICT_NAME, SUPERINTENDENT_NAME
-METRICS: school_count, total_capacity, total_enrollment, total_staff, total_teachers, avg_graduation_rate, avg_attendance_rate, total_students, ell_students, sped_students, frl_students, capacity_utilization, student_teacher_ratio, avg_capacity_utilization""",
-        'STAFF_WORKFORCE_ANALYTICS': """DIMENSIONS: STAFF_ID, DISPLAY_NAME, EMPLOYEE_TYPE, POSITION_TITLE, ROLE_CATEGORY, DEPARTMENT, EMPLOYMENT_STATUS, HIGHEST_DEGREE, HIGHLY_QUALIFIED, LICENSE_STATUS, SALARY_BAND, IS_TEACHER, IS_ADMINISTRATOR, SCHOOL_NAME, SCHOOL_TYPE, COUNTY
-METRICS: staff_count, active_staff, teacher_count, admin_count, total_experience_years, avg_experience, avg_tenure, highly_qualified_count, avg_summary_experience, total_hq_rate, highly_qualified_rate""",
-        'ENROLLMENT_SUMMARY_ANALYTICS': """DIMENSIONS: GRADE_LEVEL, SCHOOL_ID, SCHOOL_NAME, SCHOOL_TYPE, COUNTY, DISTRICT_ID, DISTRICT_NAME
-METRICS: student_count, active_count, ell_count, sped_count, frl_count, homeless_count, ell_rate, sped_rate, frl_rate""",
-        'GOVERNANCE_ANALYTICS': """DIMENSIONS: CONTRACT_ID, VERSION, STATUS, CONTRACT_TYPE, PRODUCER_SYSTEM, PRODUCER_TEAM, GOVERNANCE_CLASSIFICATION, HEALTH_STATUS, RULE_NAME, RULE_TYPE, SEVERITY, ALERT_TYPE
-METRICS: contract_count, active_contracts, healthy_contracts, warning_contracts, critical_contracts, consumer_count, active_consumers, rule_count, active_rules, alert_count, open_alerts, critical_alerts, avg_consumers_per_contract, avg_rules_per_contract, health_score"""
-    }
-    
-    for key, ctx in view_contexts.items():
-        if key in semantic_view.upper():
-            return ctx
-    
-    return "Query this semantic view to analyze education data."
+        return None, f"Error calling Cortex Analyst: {str(e)}"
 
 def execute_sql(sql: str):
     """Execute SQL and return DataFrame"""
