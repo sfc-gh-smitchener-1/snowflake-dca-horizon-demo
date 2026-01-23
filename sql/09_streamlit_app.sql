@@ -17,7 +17,7 @@ USE WAREHOUSE ANALYTICS_WH;
 USE DATABASE SEM_DEV;
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- PART 1: CREATE SCHEMA FOR STREAMLIT APPSs
+-- PART 1: CREATE SCHEMA FOR STREAMLIT APPS
 -- ═══════════════════════════════════════════════════════════════════════════
 
 CREATE SCHEMA IF NOT EXISTS SEM_DEV.STREAMLIT_APPS
@@ -86,8 +86,8 @@ SELECT 'Streamlit App Deployment Complete' AS STATUS;
 -- Show the created Streamlit app
 SHOW STREAMLITS IN SCHEMA SEM_DEV.STREAMLIT_APPS;
 
--- Get the URL for the Streamlit app
-SELECT SYSTEM$GET_STREAMLIT_URL('SEM_DEV.STREAMLIT_APPS.SCHOOL_DISTRICT_DEMO') AS APP_URL;
+-- To access the app, navigate to:
+-- Snowsight > Projects > Streamlit > SCHOOL_DISTRICT_DEMO
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- DEPLOYMENT INSTRUCTIONS
