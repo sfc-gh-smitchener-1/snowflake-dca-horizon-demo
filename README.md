@@ -1,4 +1,4 @@
-# Snowflake Massachusetts School District Horizon Demo
+# Snowflake School District Horizon Demo
 
 > A comprehensive demonstration of **Snowflake Horizon** governance, privacy, and observability capabilities using synthetic Massachusetts school district data with 100,000 students across 250 schools in the Greater Boston area.
 
