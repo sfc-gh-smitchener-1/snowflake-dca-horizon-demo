@@ -17,7 +17,7 @@ USE WAREHOUSE ANALYTICS_WH;
 USE DATABASE SEM_DEV;
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- PART 1: CREATE SCHEMA FOR STREAMLIT APPS
+-- PART 1: CREATE SCHEMA FOR STREAMLIT APPSs
 -- ═══════════════════════════════════════════════════════════════════════════
 
 CREATE SCHEMA IF NOT EXISTS SEM_DEV.STREAMLIT_APPS
